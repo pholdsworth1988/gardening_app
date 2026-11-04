@@ -55,10 +55,15 @@ export default function GardenSvg({ garden, width, mode, selectedId, showNumbers
   const height = base.height + (tb ? TB_H : 0);
   const gw = garden.widthM * scale;
   const gh = garden.depthM * scale;
-  const order = ['lawn', 'path', 'patio', 'decking', 'bed', 'raised_bed', 'pond', 'hedge'];
+  // Borders go down first, so a curving lawn and paths can be cut out of them.
+  const order = ['bed', 'lawn', 'path', 'patio', 'decking', 'raised_bed', 'pond', 'hedge'];
   // Ground surfaces first so structures sit on top; unknown kinds last.
   const rank = (f: Feature) => (order.includes(f.kind) ? order.indexOf(f.kind) : order.length);
   const feats = [...garden.features].sort((a, b) => rank(a) - rank(b));
+  const hasFurniture = (f: Feature) => {
+    const xs = f.points.map((q) => q.x), ys = f.points.map((q) => q.y);
+    return (garden.furniture ?? []).some((it) => it.x > Math.min(...xs) && it.x < Math.max(...xs) && it.y > Math.min(...ys) && it.y < Math.max(...ys));
+  };
 
   return (
     <Svg width={width} height={height} viewBox={`0 0 ${width} ${height}`} fontFamily={FONT}>
@@ -136,7 +141,18 @@ export default function GardenSvg({ garden, width, mode, selectedId, showNumbers
         return (
           <G key={p.id}>
             {info && <PlantSymbol info={info} id={p.id} cx={cx} cy={cy} quantity={p.quantity} scale={scale} selected={selected} gradPrefix={`g-${garden.id}`} />}
-            {showNumbers && !annotate && (() => {
+          </G>
+        );
+      })}
+
+      {/* Number tags last, so taller plants never hide them */}
+      {plan && showNumbers && !annotate && garden.plants.map((p, i) => {
+        const info = plantById(p.plantId);
+        const r = Math.max(((info?.spreadM ?? 0.5) / 2) * scale, 5);
+        const cx = X(p.x), cy = Y(p.y);
+        return (
+          <G key={`n${p.id}`}>
+            {(() => {
               // Tag sits at the canopy's top-right; flip to top-left near the right boundary.
               const flip = cx + r * 0.71 + 13 > X(0) + gw;
               const dx = flip ? -1 : 1;
@@ -157,11 +173,11 @@ export default function GardenSvg({ garden, width, mode, selectedId, showNumbers
       </G>
 
       {/* Labels */}
-      {!thumbnail && feats.filter((f) => f.kind !== 'fence' && f.kind !== 'wall').map((f) => {
+      {!thumbnail && feats.filter((f) => f.label && f.kind !== 'fence' && f.kind !== 'wall').map((f) => {
         const common = {
           x: X(f.center.x),
           // Beds and seating areas are labelled along their bottom edge, clear of plants and furniture.
-          y: plan && (f.kind === 'bed' || f.kind === 'raised_bed' || ((f.kind === 'patio' || f.kind === 'decking') && (garden.furniture?.length ?? 0) > 0))
+          y: plan && (f.kind === 'bed' || f.kind === 'raised_bed' || hasFurniture(f))
             ? Y(Math.max(...f.points.map((q) => q.y))) - 6
             : Y(f.center.y) + 4,
           fontSize: plan ? 10 : 11,

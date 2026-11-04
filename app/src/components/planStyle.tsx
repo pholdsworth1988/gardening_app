@@ -265,7 +265,36 @@ const bounds = (pts: { x: number; y: number }[]) => {
   return { x0: Math.min(...xs), x1: Math.max(...xs), y0: Math.min(...ys), y1: Math.max(...ys) };
 };
 
+/** Stepping stones laid along a path's centre line, one roughly every 0.6 m, turned to follow it. */
+function SteppingStones({ f, X, Y, scale }: { f: Feature; X: Px; Y: Px; scale: number }) {
+  const pts = f.points.map((p) => ({ x: X(p.x), y: Y(p.y) }));
+  const step = 0.62 * scale;
+  const stones: ReactElement[] = [];
+  const rand = rng(f.id);
+  let carry = step / 2;
+  for (let i = 0; i < pts.length - 1; i++) {
+    const a = pts[i], b = pts[i + 1];
+    const len = Math.hypot(b.x - a.x, b.y - a.y);
+    const deg = (Math.atan2(b.y - a.y, b.x - a.x) * 180) / Math.PI;
+    let t = carry;
+    for (; t < len; t += step) {
+      const x = a.x + ((b.x - a.x) * t) / len, y = a.y + ((b.y - a.y) * t) / len;
+      const w = (0.36 + rand() * 0.05) * scale, h = (0.5 + rand() * 0.06) * scale;
+      const rot = deg + (rand() - 0.5) * 14;
+      stones.push(
+        <G key={stones.length} rotation={rot} origin={`${x}, ${y}`}>
+          <Rect x={x - w / 2 + 0.03 * scale} y={y - h / 2 + 0.03 * scale} width={w} height={h} rx={w * 0.35} fill={PALETTE.shadow} />
+          <Rect x={x - w / 2} y={y - h / 2} width={w} height={h} rx={w * 0.35} fill={PALETTE.stone[stones.length % 3]} stroke="#8f8a7f" strokeWidth={0.6} />
+        </G>,
+      );
+    }
+    carry = t - len; // distance still to go before the next stone
+  }
+  return <G>{stones}</G>;
+}
+
 export function Surface({ f, X, Y, scale, clipId }: { f: Feature; X: Px; Y: Px; scale: number; clipId: string }) {
+  if (f.material === 'stepping_stones') return <SteppingStones f={f} X={X} Y={Y} scale={scale} />;
   const px = f.points.map((p) => ({ x: X(p.x), y: Y(p.y) }));
   const pts = px.map((p) => `${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(' ');
   const b = bounds(px);

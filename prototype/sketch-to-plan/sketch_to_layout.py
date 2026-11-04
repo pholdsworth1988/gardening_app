@@ -28,6 +28,11 @@ Rules:
 - Keep every feature inside the garden boundary, and keep features from overlapping
   unless the sketch shows them overlapping (a path crossing a lawn is fine).
 - Beds, lawns, patios and paths are polygons. Trees, ponds and round features can be circles.
+- Keep the flow of the sketch. Where an edge is drawn curved, trace it with enough
+  polygon points (about one every 0.3 m) that it reads as a smooth curve, not a corner.
+  Never straighten a curved lawn, border or path into a rectangle.
+- A stepping-stone path is a `path` with material `stepping_stones`; its points are the
+  path's centre line from one end to the other.
 - Where the sketch names plants, place them inside their bed with realistic mature
   spreads. Where a bed is drawn but not planted, suggest 2 to 4 plants suited to a
   typical home garden and say so in `assumptions`.
