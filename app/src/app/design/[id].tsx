@@ -38,7 +38,7 @@ export default function Design() {
       </View>
 
       <View style={styles.drawing}>
-        <GardenSvg garden={garden} width={drawW} mode={mode} titleBlock />
+        <GardenSvg garden={garden} width={drawW} mode={mode} titleBlock annotate />
       </View>
       {mode === 'concept' && (
         <SampleBanner text="Concept preview. The full app will paint a realistic picture from this plan with an image AI." />

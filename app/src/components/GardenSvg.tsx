@@ -1,7 +1,7 @@
 import Svg, { Circle, ClipPath, Defs, G, Line, Path, Polygon, Polyline, Rect, Text as SvgText } from 'react-native-svg';
 
 import { plantById } from '@/data/plants';
-import { FurnitureSymbol, PALETTE, PlanDefs, PlantSymbol, Surface } from './planStyle';
+import { FurnitureSymbol, PALETTE, PlantSymbol, Surface } from './planStyle';
 import type { Feature, Garden } from '@/data/types';
 
 export type Mode = 'plan' | 'concept';
@@ -9,15 +9,17 @@ export type Mode = 'plan' | 'concept';
 // Padding around the garden for dimensions, scale bar and north arrow.
 export const PAD = { left: 40, top: 34, right: 14, bottom: 58 };
 
-export const LABEL_COL = 116; // right-hand column for plant names
+export const LABEL_COL = 100; // width of each side column of leader-line labels
+export const ANNOTATE_MIN_W = 500; // annotated sheets are laid out at least this wide, then scaled to fit
 
 export function garden2px(garden: Garden, width: number, annotate = false) {
-  const right = annotate ? LABEL_COL : PAD.right;
-  const scale = (width - PAD.left - right) / garden.widthM; // px per metre
+  const left = annotate ? LABEL_COL + 22 : PAD.left;
+  const right = annotate ? LABEL_COL + 6 : PAD.right;
+  const scale = (width - left - right) / garden.widthM; // px per metre
   return {
     scale,
     height: garden.depthM * scale + PAD.top + PAD.bottom,
-    X: (m: number) => PAD.left + m * scale,
+    X: (m: number) => left + m * scale,
     Y: (m: number) => PAD.top + m * scale,
   };
 }
@@ -41,16 +43,19 @@ type Props = {
   selectedId?: string | null;
   showNumbers?: boolean;
   thumbnail?: boolean; // no labels or north arrow
-  annotate?: boolean; // plant names in a side column with leader lines
+  annotate?: boolean; // leader-line labels down both sides, like a designer's sheet
   titleBlock?: boolean; // designer's title strip under the plan
 };
 
 const TB_H = 52; // extra height for the title block
 
-export default function GardenSvg({ garden, width, mode, selectedId, showNumbers = true, thumbnail = false, annotate = false, titleBlock = false }: Props) {
+export default function GardenSvg({ garden, width: displayW, mode, selectedId, showNumbers = true, thumbnail = false, annotate = false, titleBlock = false }: Props) {
   const plan = mode === 'plan';
+  const notes = plan && annotate && !thumbnail;
+  // An annotated sheet needs room for its label columns, so it is laid out wider and scaled down.
+  const width = notes ? Math.max(displayW, ANNOTATE_MIN_W) : displayW;
   const tb = plan && titleBlock && !thumbnail;
-  const base = garden2px(garden, width, annotate && plan);
+  const base = garden2px(garden, width, notes);
   const { scale, X, Y } = base;
   const height = base.height + (tb ? TB_H : 0);
   const gw = garden.widthM * scale;
@@ -66,7 +71,7 @@ export default function GardenSvg({ garden, width, mode, selectedId, showNumbers
   };
 
   return (
-    <Svg width={width} height={height} viewBox={`0 0 ${width} ${height}`} fontFamily={FONT}>
+    <Svg width={displayW} height={(height * displayW) / width} viewBox={`0 0 ${width} ${height}`} fontFamily={FONT}>
       <Rect x={0} y={0} width={width} height={height} fill={plan ? PALETTE.paper : '#f3f0e6'} />
 
       {/* Metre ticks along the boundary, as on a drawn plan */}
@@ -82,8 +87,6 @@ export default function GardenSvg({ garden, width, mode, selectedId, showNumbers
       )}
 
       {!plan && <Rect x={X(0)} y={Y(0)} width={gw} height={gh} fill="#b7cf9f" />}
-
-      {plan && <PlanDefs prefix={`g-${garden.id}`} />}
 
       {/* Keep everything, shadows included, inside the garden boundary */}
       <Defs>
@@ -140,13 +143,13 @@ export default function GardenSvg({ garden, width, mode, selectedId, showNumbers
         }
         return (
           <G key={p.id}>
-            {info && <PlantSymbol info={info} id={p.id} cx={cx} cy={cy} quantity={p.quantity} scale={scale} selected={selected} gradPrefix={`g-${garden.id}`} />}
+            {info && <PlantSymbol info={info} id={p.id} cx={cx} cy={cy} quantity={p.quantity} scale={scale} selected={selected} />}
           </G>
         );
       })}
 
       {/* Number tags last, so taller plants never hide them */}
-      {plan && showNumbers && !annotate && garden.plants.map((p, i) => {
+      {plan && showNumbers && !notes && garden.plants.map((p, i) => {
         const info = plantById(p.plantId);
         const r = Math.max(((info?.spreadM ?? 0.5) / 2) * scale, 5);
         const cx = X(p.x), cy = Y(p.y);
@@ -173,7 +176,7 @@ export default function GardenSvg({ garden, width, mode, selectedId, showNumbers
       </G>
 
       {/* Labels */}
-      {!thumbnail && feats.filter((f) => f.label && f.kind !== 'fence' && f.kind !== 'wall').map((f) => {
+      {!thumbnail && !notes && feats.filter((f) => f.label && f.kind !== 'fence' && f.kind !== 'wall').map((f) => {
         const common = {
           x: X(f.center.x),
           // Beds and seating areas are labelled along their bottom edge, clear of plants and furniture.
@@ -195,54 +198,102 @@ export default function GardenSvg({ garden, width, mode, selectedId, showNumbers
       })}
 
       <Rect x={X(0)} y={Y(0)} width={gw} height={gh} fill="none" stroke={INK} strokeWidth={plan ? 2.2 : 1} />
-      {plan && annotate && <PlantLabels garden={garden} X={X} Y={Y} scale={scale} width={width} />}
+      {notes && <Callouts garden={garden} X={X} Y={Y} scale={scale} width={width} />}
 
       {plan && (
         <G>
-          <DimLine x1={X(0)} y1={Y(0) - 18} x2={X(garden.widthM)} y2={Y(0) - 18} text={`${garden.widthM.toFixed(2)} m`} />
-          <DimLine x1={X(0) - 22} y1={Y(0)} x2={X(0) - 22} y2={Y(garden.depthM)} text={`${garden.depthM.toFixed(2)} m`} vertical />
+          <DimLine x1={X(0)} y1={Y(0) - 18} x2={X(garden.widthM)} y2={Y(0) - 18} text={notes ? `${garden.widthM.toFixed(2)} m × ${garden.depthM.toFixed(2)} m deep` : `${garden.widthM.toFixed(2)} m`} />
+          {/* On a labelled sheet the side columns hold notes, so depth is given by the ticks, scale bar and title block */}
+          {!notes && <DimLine x1={X(0) - 22} y1={Y(0)} x2={X(0) - 22} y2={Y(garden.depthM)} text={`${garden.depthM.toFixed(2)} m`} vertical />}
           <ScaleBar x={X(0)} y={Y(garden.depthM) + 30} scale={scale} />
         </G>
       )}
       {!thumbnail && <NorthArrow cx={X(garden.widthM) - 18} cy={Y(garden.depthM) + 32} deg={garden.northDeg} />}
-      {tb && <TitleBlock garden={garden} x={X(0)} y={Y(garden.depthM) + 56} w={gw} />}
+      {tb && <TitleBlock garden={garden} x={notes ? 8 : X(0)} y={Y(garden.depthM) + 56} w={notes ? width - 16 : gw} />}
     </Svg>
   );
 }
 
-// Plant names down the right-hand side, each joined to its plant by a leader line.
-function PlantLabels({ garden, X, Y, scale, width }: { garden: Garden; X: (m: number) => number; Y: (m: number) => number; scale: number; width: number }) {
-  const colX = X(garden.widthM) + 16;
-  const items = garden.plants
-    .map((p) => ({ p, info: plantById(p.plantId) }))
-    .filter((it) => it.info)
-    .sort((a, b) => a.p.y - b.p.y);
-  // Spread labels so they never overlap, keeping each near its plant's height on the page.
-  const gap = 24;
-  const ys: number[] = [];
-  items.forEach((it, i) => {
-    const want = Y(it.p.y);
-    ys.push(i === 0 ? Math.max(want, Y(0) + 8) : Math.max(want, ys[i - 1] + gap));
+const FURNITURE_NAMES: Record<string, string> = {
+  dining_set: 'Dining table', bistro_set: 'Bistro table', bench: 'Timber bench', lounger: 'Sun lounger',
+  sofa: 'Outdoor sofa', fire_pit: 'Fire pit', pot: 'Planted pot',
+};
+const cap = (t: string) => t.charAt(0).toUpperCase() + t.slice(1);
+
+type Callout = { ax: number; ay: number; title: string; sub: string; italic: boolean };
+
+// Labels down both sides of the sheet, each joined to its item by a fine leader line,
+// as on a designer's hand-lettered plan. Items on the left half go to the left column.
+function Callouts({ garden, X, Y, scale, width }: { garden: Garden; X: (m: number) => number; Y: (m: number) => number; scale: number; width: number }) {
+  const midX = X(garden.widthM / 2);
+  const items: Callout[] = [];
+  garden.features.forEach((f) => {
+    if (f.kind === 'fence' || f.kind === 'wall' || (f.kind === 'bed' && !f.label)) return;
+    const stones = f.material === 'stepping_stones';
+    const title = stones ? 'Stepping-stone path' : f.label;
+    if (!title) return;
+    const c = stones ? f.points[Math.floor(f.points.length / 2)] : f.center;
+    // Anchor on the item's edge nearest its label column, so leaders stay short.
+    const toLeft = X(c.x) < midX;
+    let a = c;
+    if (!stones) {
+      const near = f.points.filter((q) => Math.abs(q.y - c.y) < (Math.max(...f.points.map((p) => p.y)) - Math.min(...f.points.map((p) => p.y))) * 0.25);
+      const pool = near.length ? near : f.points;
+      const edge = pool.reduce((best, q) => (toLeft ? q.x < best.x : q.x > best.x) ? q : best, pool[0]);
+      a = { x: edge.x + (toLeft ? 0.25 : -0.25), y: edge.y };
+    }
+    const mat = f.material && !stones && !title.toLowerCase().includes(f.material) ? cap(f.material) : '';
+    items.push({ ax: X(a.x), ay: Y(a.y), title, sub: mat, italic: false });
   });
-  const overflow = ys.length ? ys[ys.length - 1] - (Y(garden.depthM) - 8) : 0;
-  if (overflow > 0) for (let i = ys.length - 1; i >= 0; i--) ys[i] = Math.min(ys[i] - overflow, i < ys.length - 1 ? ys[i + 1] - gap : Infinity);
-  const maxChars = Math.floor((width - colX - 4) / 5.2);
+  (garden.furniture ?? []).forEach((it) => {
+    const name = FURNITURE_NAMES[it.kind] ?? cap(it.kind);
+    items.push({ ax: X(it.x), ay: Y(it.y), title: name, sub: it.seats ? `${it.seats} chairs` : '', italic: false });
+  });
+  garden.plants.forEach((p) => {
+    const info = plantById(p.plantId);
+    if (!info) return;
+    const r = Math.max((info.spreadM / 2) * scale, 4);
+    const toLeft = X(p.x) < midX;
+    items.push({ ax: X(p.x) + (toLeft ? -r * 0.4 : r * 0.4), ay: Y(p.y), title: `${info.commonName}${p.quantity > 1 ? ` ×${p.quantity}` : ''}`, sub: info.latinName, italic: true });
+  });
+
+  const top = Y(0) + 4, bottom = Y(garden.depthM) - 2;
+  const sides = [items.filter((i) => i.ax < midX), items.filter((i) => i.ax >= midX)];
+  const maxChars = Math.floor(LABEL_COL / 4.1);
   const trim = (t: string) => (t.length > maxChars ? t.slice(0, maxChars - 1) + '…' : t);
+
   return (
     <G>
-      {items.map(({ p, info }, i) => {
-        const r = Math.max((info!.spreadM / 2) * scale, 4);
-        const sx = X(p.x) + r * 0.7, sy = Y(p.y) - r * 0.2;
-        const y = ys[i];
-        const elbow = X(garden.widthM) + 6;
-        return (
-          <G key={p.id}>
-            <Path d={`M${sx} ${sy} L${elbow} ${y} H${colX - 3}`} stroke={INK} strokeWidth={0.5} fill="none" />
-            <Circle cx={sx} cy={sy} r={1.4} fill={INK} />
-            <SvgText x={colX} y={y - 1} fontSize={9.5} fill={INK}>{trim(`${info!.commonName}${p.quantity > 1 ? ` ×${p.quantity}` : ''}`)}</SvgText>
-            <SvgText x={colX} y={y + 9} fontSize={7.5} fontStyle="italic" fill="#5b625d">{trim(info!.latinName)}</SvgText>
-          </G>
-        );
+      {sides.map((list, side) => {
+        list.sort((a, b) => a.ay - b.ay);
+        const hOf = (c: Callout) => (c.sub ? 19 : 11);
+        const need = list.reduce((s, c) => s + hOf(c), 0);
+        const squeeze = Math.min(1, (bottom - top) / Math.max(need, 1));
+        // Place each label as near its item as it can go without overlapping the one above.
+        const ys: number[] = [];
+        list.forEach((c, i) => {
+          const want = c.ay - 4;
+          ys.push(i === 0 ? Math.max(want, top) : Math.max(want, ys[i - 1] + hOf(list[i - 1]) * squeeze));
+        });
+        for (let i = list.length - 1; i >= 0; i--) {
+          const limit = i === list.length - 1 ? bottom - hOf(list[i]) * squeeze : ys[i + 1] - hOf(list[i]) * squeeze;
+          if (ys[i] > limit) ys[i] = limit;
+        }
+        const left = side === 0;
+        const colEdge = left ? X(0) - 16 : X(garden.widthM) + 6;
+        const textX = left ? colEdge - 3 : colEdge + 3;
+        const anchor = left ? 'end' : 'start';
+        return list.map((c, i) => {
+          const y = ys[i] + 4;
+          return (
+            <G key={`${side}-${i}`}>
+              <Line x1={c.ax} y1={c.ay} x2={colEdge} y2={y} stroke={INK} strokeWidth={0.45} />
+              <Circle cx={c.ax} cy={c.ay} r={1.3} fill={INK} />
+              <SvgText x={textX} y={y + 2.5} fontSize={8} textAnchor={anchor} fill={INK}>{trim(c.title)}</SvgText>
+              {c.sub ? <SvgText x={textX} y={y + 11} fontSize={6.8} fontStyle={c.italic ? 'italic' : 'normal'} textAnchor={anchor} fill="#4a4f4b">{trim(c.sub)}</SvgText> : null}
+            </G>
+          );
+        });
       })}
     </G>
   );
