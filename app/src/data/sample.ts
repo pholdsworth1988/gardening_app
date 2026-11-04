@@ -1,4 +1,4 @@
-import type { Aspect, Feature, Garden, Point } from './types';
+import type { Aspect, Feature, Furniture, Garden, Point } from './types';
 
 // Stand-in for the AI step. It returns the sample back-garden layout scaled to the
 // size the user entered. The real version sends the sketch photo to the Claude API
@@ -38,6 +38,16 @@ const PLANT_SPOTS: { plantId: string; u: number; v: number; quantity: number; fe
   { plantId: 'rosemary', u: 0.925, v: 0.66, quantity: 1, featureId: 'F3' },
 ];
 
+// Seating on the patio and lawn. Positions are fractions; sizes are real furniture sizes.
+const FURNITURE_SPOTS: (Omit<Furniture, 'x' | 'y'> & { u: number; v: number })[] = [
+  { id: 'S1', kind: 'dining_set', u: 0.3, v: 0.875, rotDeg: 0, seats: 6 },
+  { id: 'S2', kind: 'lounger', u: 0.7, v: 0.875, rotDeg: 0, seats: 0 },
+  { id: 'S3', kind: 'lounger', u: 0.81, v: 0.875, rotDeg: 0, seats: 0 },
+  { id: 'S4', kind: 'pot', u: 0.04, v: 0.785, rotDeg: 0, seats: 0 },
+  { id: 'S5', kind: 'pot', u: 0.95, v: 0.785, rotDeg: 0, seats: 0 },
+  { id: 'S6', kind: 'bench', u: 0.5625, v: 0.285, rotDeg: 0, seats: 0 },
+];
+
 export function makeLayoutFromSketch(opts: {
   id: string; title: string; widthM: number; depthM: number; aspect: Aspect; sketchUri: string | null;
 }): Garden {
@@ -50,6 +60,7 @@ export function makeLayoutFromSketch(opts: {
   const plants = PLANT_SPOTS.map((s, i) => ({
     id: `P${i + 1}`, plantId: s.plantId, x: round(s.u * w), y: round(s.v * d), quantity: s.quantity, featureId: s.featureId,
   }));
+  const furniture = FURNITURE_SPOTS.map(({ u, v, ...f }) => ({ ...f, x: round(u * w), y: round(v * d) }));
   return {
     id: opts.id,
     title: opts.title,
@@ -61,10 +72,12 @@ export function makeLayoutFromSketch(opts: {
     sketchUri: opts.sketchUri,
     features,
     plants,
+    furniture,
     assumptions: [
       `Garden size taken from what you entered: ${w} m by ${d} m.`,
       'Sample layout: in the full app this comes from reading your sketch.',
       'Border plants suggested because the beds were left unplanted.',
+      'Dining set for six and two loungers suggested for the patio, with a bench facing down the lawn.',
     ],
   };
 }

@@ -31,7 +31,11 @@ Rules:
 - Where the sketch names plants, place them inside their bed with realistic mature
   spreads. Where a bed is drawn but not planted, suggest 2 to 4 plants suited to a
   typical home garden and say so in `assumptions`.
-- Use common plant names that a home gardener would recognise, with the Latin name."""
+- Use common plant names that a home gardener would recognise, with the Latin name.
+- Put garden furniture in `furniture`: anything drawn or named on the sketch, such
+  as a table and chairs, bench or loungers. Where a patio or decking has no seating,
+  suggest a sensible set (for example a dining set for 4 to 6) and say so in
+  `assumptions`. Keep furniture on hard surfaces or lawn, never in beds."""
 
 
 def sketch_to_layout(image_path: str, width_m: float, depth_m: float, notes: str = "") -> GardenLayout:

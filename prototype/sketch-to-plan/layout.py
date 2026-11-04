@@ -45,6 +45,20 @@ class Plant(BaseModel):
     feature_id: str = Field(description="Id of the bed it sits in, or empty")
 
 
+FurnitureKind = Literal[
+    "dining_set", "bistro_set", "bench", "lounger", "sofa", "fire_pit", "pot",
+]
+
+
+class Furniture(BaseModel):
+    id: str = Field(description="Short id such as S1")
+    kind: FurnitureKind
+    x: float = Field(description="Centre, metres from the left edge")
+    y: float = Field(description="Centre, metres from the top edge")
+    rotation_deg: float = Field(description="Clockwise turn from facing down the page. 0 if unsure.")
+    seats: int = Field(description="Number of chairs for dining_set or bistro_set, otherwise 0")
+
+
 class GardenLayout(BaseModel):
     title: str = Field(description="Short name for the design, such as 'Back garden'")
     width_m: float
@@ -54,6 +68,10 @@ class GardenLayout(BaseModel):
     )
     features: list[Feature]
     plants: list[Plant]
+    furniture: list[Furniture] = Field(
+        default_factory=list,
+        description="Tables, chairs, benches, loungers, sofas, fire pits and pots on the plan"
+    )
     assumptions: list[str] = Field(
         description="Anything guessed because the sketch did not say, such as sizes read from proportions"
     )

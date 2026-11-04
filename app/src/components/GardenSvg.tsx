@@ -1,7 +1,7 @@
 import Svg, { Circle, ClipPath, Defs, G, Line, Path, Polygon, Polyline, Rect, Text as SvgText } from 'react-native-svg';
 
 import { plantById } from '@/data/plants';
-import { PALETTE, PlanDefs, PlantSymbol, Surface } from './planStyle';
+import { FurnitureSymbol, PALETTE, PlanDefs, PlantSymbol, Surface } from './planStyle';
 import type { Feature, Garden } from '@/data/types';
 
 export type Mode = 'plan' | 'concept';
@@ -42,11 +42,17 @@ type Props = {
   showNumbers?: boolean;
   thumbnail?: boolean; // no labels or north arrow
   annotate?: boolean; // plant names in a side column with leader lines
+  titleBlock?: boolean; // designer's title strip under the plan
 };
 
-export default function GardenSvg({ garden, width, mode, selectedId, showNumbers = true, thumbnail = false, annotate = false }: Props) {
-  const { scale, height, X, Y } = garden2px(garden, width, annotate && mode === 'plan');
+const TB_H = 52; // extra height for the title block
+
+export default function GardenSvg({ garden, width, mode, selectedId, showNumbers = true, thumbnail = false, annotate = false, titleBlock = false }: Props) {
   const plan = mode === 'plan';
+  const tb = plan && titleBlock && !thumbnail;
+  const base = garden2px(garden, width, annotate && plan);
+  const { scale, X, Y } = base;
+  const height = base.height + (tb ? TB_H : 0);
   const gw = garden.widthM * scale;
   const gh = garden.depthM * scale;
   const order = ['lawn', 'path', 'patio', 'decking', 'bed', 'raised_bed', 'pond', 'hedge'];
@@ -104,6 +110,11 @@ export default function GardenSvg({ garden, width, mode, selectedId, showNumbers
         return <Polygon key={f.id} points={pts} fill={fill} stroke={stroke} strokeWidth={sw} />;
       })}
 
+      {/* Furniture sits on the surfaces, under any overhanging plants */}
+      {(garden.furniture ?? []).map((it) => (
+        <FurnitureSymbol key={it.id} item={it} cx={X(it.x)} cy={Y(it.y)} scale={scale} />
+      ))}
+
       {/* Plants */}
       {[...garden.plants.map((p, i) => ({ p, i }))]
         .sort((a, b) => (plantById(a.p.plantId)?.heightM ?? 0) - (plantById(b.p.plantId)?.heightM ?? 0))
@@ -149,7 +160,8 @@ export default function GardenSvg({ garden, width, mode, selectedId, showNumbers
       {!thumbnail && feats.filter((f) => f.kind !== 'fence' && f.kind !== 'wall').map((f) => {
         const common = {
           x: X(f.center.x),
-          y: plan && (f.kind === 'bed' || f.kind === 'raised_bed')
+          // Beds and seating areas are labelled along their bottom edge, clear of plants and furniture.
+          y: plan && (f.kind === 'bed' || f.kind === 'raised_bed' || ((f.kind === 'patio' || f.kind === 'decking') && (garden.furniture?.length ?? 0) > 0))
             ? Y(Math.max(...f.points.map((q) => q.y))) - 6
             : Y(f.center.y) + 4,
           fontSize: plan ? 10 : 11,
@@ -177,6 +189,7 @@ export default function GardenSvg({ garden, width, mode, selectedId, showNumbers
         </G>
       )}
       {!thumbnail && <NorthArrow cx={X(garden.widthM) - 18} cy={Y(garden.depthM) + 32} deg={garden.northDeg} />}
+      {tb && <TitleBlock garden={garden} x={X(0)} y={Y(garden.depthM) + 56} w={gw} />}
     </Svg>
   );
 }
@@ -215,6 +228,35 @@ function PlantLabels({ garden, X, Y, scale, width }: { garden: Garden; X: (m: nu
           </G>
         );
       })}
+    </G>
+  );
+}
+
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+const shortDate = (iso: string) => {
+  const d = new Date(iso);
+  return isNaN(d.getTime()) ? '' : `${d.getDate()} ${MONTHS[d.getMonth()]} ${d.getFullYear()}`;
+};
+
+// A designer's title strip: brand, drawing name and the key facts about the sheet.
+function TitleBlock({ garden, x, y, w }: { garden: Garden; x: number; y: number; w: number }) {
+  const h = 42;
+  const c1 = w * 0.27, c3 = w * 0.3;
+  const c2 = w - c1 - c3;
+  const area = garden.widthM * garden.depthM;
+  const small = { fontSize: 7.5, fill: '#5b625d', letterSpacing: 0.4 } as const;
+  return (
+    <G>
+      <Rect x={x} y={y} width={w} height={h} fill="#ffffff" stroke={INK} strokeWidth={1.2} />
+      <Rect x={x} y={y} width={c1} height={h} fill={INK} />
+      <SvgText x={x + c1 / 2} y={y + 21} fontSize={13} fontWeight="700" letterSpacing={2.5} textAnchor="middle" fill="#ffffff">HEDGE</SvgText>
+      <SvgText x={x + c1 / 2} y={y + 32} fontSize={6.5} letterSpacing={0.8} textAnchor="middle" fill="#cfd8cf">GARDEN DESIGN</SvgText>
+      <Line x1={x + c1 + c2} y1={y} x2={x + c1 + c2} y2={y + h} stroke={INK} strokeWidth={0.6} />
+      <SvgText x={x + c1 + 8} y={y + 17} fontSize={11} fontWeight="700" fill={INK}>{garden.title}</SvgText>
+      <SvgText x={x + c1 + 8} y={y + 31} {...small}>LAYOUT AND PLANTING PLAN</SvgText>
+      <SvgText x={x + c1 + c2 + 7} y={y + 13} {...small}>{`PLOT ${garden.widthM.toFixed(1)} × ${garden.depthM.toFixed(1)} M`}</SvgText>
+      <SvgText x={x + c1 + c2 + 7} y={y + 24} {...small}>{`AREA ${area.toFixed(0)} M²`}</SvgText>
+      <SvgText x={x + c1 + c2 + 7} y={y + 35} {...small}>{shortDate(garden.createdAt).toUpperCase()}</SvgText>
     </G>
   );
 }

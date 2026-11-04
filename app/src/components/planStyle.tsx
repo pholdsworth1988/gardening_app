@@ -2,11 +2,11 @@
 // Everything is drawn in code from the layout, so it scales to each plant's real size
 // and stays editable. All randomness is seeded from ids, so a plan always looks the same.
 
-import type { ReactElement } from 'react';
+import { Fragment, type ReactElement } from 'react';
 import { Circle, ClipPath, Defs, G, Line, Path, Polygon, RadialGradient, Rect, Stop } from 'react-native-svg';
 
-import type { PlantInfo } from '@/data/plants';
-import type { Feature } from '@/data/types';
+import { PLANTS, type PlantInfo } from '@/data/plants';
+import type { Feature, Furniture } from '@/data/types';
 
 type Px = (m: number) => number;
 
@@ -29,6 +29,26 @@ export const PALETTE = {
   foliageHi: '#d0e5ac', foliage: '#a6c97f', foliageEdge: '#83ad62',
   grass: '#b5a66c',
 };
+
+// Each plant gets its own foliage tone and leaf texture, so the planting reads at a glance.
+type Texture = 'leafy' | 'fine' | 'needle' | 'frond' | 'none';
+const TONES: Record<string, { hi: string; mid: string; edge: string; line: string; tex: Texture }> = {
+  acer: { hi: '#e9b3a2', mid: '#bf6a55', edge: '#924236', line: '#6a2e26', tex: 'none' },
+  lavender: { hi: '#e4e8d6', mid: '#b7c0a2', edge: '#909c7c', line: '#66725a', tex: 'fine' },
+  geranium: { hi: '#d4e6ae', mid: '#9cc072', edge: '#759d52', line: '#4f6f3a', tex: 'leafy' },
+  rose: { hi: '#cfe1a8', mid: '#8bb262', edge: '#628d45', line: '#456a33', tex: 'leafy' },
+  catmint: { hi: '#e0e7cc', mid: '#afbf92', edge: '#899b70', line: '#617050', tex: 'fine' },
+  rosemary: { hi: '#cfe0cf', mid: '#8eaa91', edge: '#63846b', line: '#46624d', tex: 'needle' },
+  hosta: { hi: '#e7f1b0', mid: '#bdd474', edge: '#94b24c', line: '#68832f', tex: 'leafy' },
+  fern: { hi: '#bfd9a0', mid: '#74a056', edge: '#4f7a3c', line: '#3a5c2b', tex: 'frond' },
+  salvia: { hi: '#d3e3b6', mid: '#98b67e', edge: '#73935b', line: '#506d40', tex: 'needle' },
+  hydrangea: { hi: '#cde2a4', mid: '#8fb664', edge: '#6b9548', line: '#4b6f34', tex: 'leafy' },
+  thyme: { hi: '#dbe5c2', mid: '#a9bc8d', edge: '#83996a', line: '#5f7350', tex: 'fine' },
+};
+const toneFor = (info: PlantInfo) =>
+  TONES[info.id] ?? (info.type === 'Tree'
+    ? { hi: PALETTE.treeHi, mid: PALETTE.tree, edge: PALETTE.treeEdge, line: PALETTE.treeLine, tex: 'none' as Texture }
+    : { hi: PALETTE.shrubHi, mid: PALETTE.shrub, edge: PALETTE.shrubEdge, line: PALETTE.treeLine, tex: 'leafy' as Texture });
 
 // Shadows fall towards the bottom right, as if the sun were top left of the sheet.
 const SUN = { x: 0.8, y: 0.6 };
@@ -96,6 +116,7 @@ export function PlanDefs({ prefix }: { prefix: string }) {
       {grad('tree', PALETTE.treeHi, PALETTE.tree, PALETTE.treeEdge)}
       {grad('shrub', PALETTE.shrubHi, PALETTE.shrub, PALETTE.shrubEdge)}
       {grad('foliage', PALETTE.foliageHi, PALETTE.foliage, PALETTE.foliageEdge)}
+      {PLANTS.map((p) => { const t = toneFor(p); return <Fragment key={p.id}>{grad(`p-${p.id}`, t.hi, t.mid, t.edge)}</Fragment>; })}
     </Defs>
   );
 }
@@ -116,6 +137,7 @@ export function PlantSymbol({ info, id, cx, cy, quantity, scale, selected, gradP
   const r = Math.max((info.spreadM / 2) * scale, 4);
   const sh = shadowOffset(info.heightM, scale);
   const g = (name: string) => `url(#${gradPrefix}-${name})`;
+  const tone = toneFor(info);
   const ring = selected ? <Circle cx={cx} cy={cy} r={r + 4} fill="none" stroke="#2f5d3a" strokeWidth={2} strokeDasharray="4 3" /> : null;
 
   if (info.type === 'Tree') {
@@ -123,13 +145,13 @@ export function PlantSymbol({ info, id, cx, cy, quantity, scale, selected, gradP
     return (
       <G>
         <SoftShadow cx={cx} cy={cy} r={r} dx={sh.dx} dy={sh.dy} />
-        <Path d={scallop(cx, cy, r, Math.round(14 + r / 5), id, 0.05)} fill={g('tree')} stroke={PALETTE.treeLine} strokeWidth={0.7} />
+        <Path d={scallop(cx, cy, r, Math.round(14 + r / 5), id, 0.05)} fill={g(`p-${info.id}`)} stroke={tone.line} strokeWidth={0.7} />
         <Circle cx={cx} cy={cy} r={r * 0.64} fill="none" stroke="#ffffff" strokeOpacity={0.45} strokeWidth={0.6} />
         {Array.from({ length: spokes }, (_, k) => {
           const a = (k / spokes) * Math.PI * 2;
-          return <Line key={k} x1={cx + Math.cos(a) * r * 0.1} y1={cy + Math.sin(a) * r * 0.1} x2={cx + Math.cos(a) * r * 0.9} y2={cy + Math.sin(a) * r * 0.9} stroke={PALETTE.treeLine} strokeOpacity={0.35} strokeWidth={0.45} />;
+          return <Line key={k} x1={cx + Math.cos(a) * r * 0.1} y1={cy + Math.sin(a) * r * 0.1} x2={cx + Math.cos(a) * r * 0.9} y2={cy + Math.sin(a) * r * 0.9} stroke={tone.line} strokeOpacity={0.35} strokeWidth={0.45} />;
         })}
-        <Circle cx={cx} cy={cy} r={Math.max(1.5, r * 0.05)} fill={PALETTE.treeLine} />
+        <Circle cx={cx} cy={cy} r={Math.max(1.5, r * 0.05)} fill={tone.line} />
         {ring}
       </G>
     );
@@ -156,20 +178,59 @@ export function PlantSymbol({ info, id, cx, cy, quantity, scale, selected, gradP
   const shrubLike = info.type === 'Shrub' || info.type === 'Climber';
   const positions = quantity > 1 ? driftPositions(quantity, info.spacingM * scale * 0.55) : [{ x: 0, y: 0 }];
   const rr = Math.max(r * (positions.length > 1 ? (shrubLike ? 0.8 : 0.65) : 0.95), 3.5);
-  const fill = shrubLike ? g('shrub') : g('foliage');
-  const line = PALETTE.treeLine;
+  const fill = g(`p-${info.id}`);
+  const line = tone.line;
   return (
     <G>
       {positions.map((p, k) => <SoftShadow key={`s${k}`} cx={cx + p.x} cy={cy + p.y} r={rr} dx={sh.dx} dy={sh.dy} />)}
       {positions.map((p, k) => (
         <G key={k}>
           <Path d={scallop(cx + p.x, cy + p.y, rr, shrubLike ? 11 : 8, `${id}${k}`, 0.08)} fill={fill} stroke={line} strokeWidth={0.6} />
+          <LeafTexture kind={tone.tex} cx={cx + p.x} cy={cy + p.y} r={rr} colour={line} seed={`${id}${k}`} />
           <FlowerDots cx={cx + p.x} cy={cy + p.y} r={rr} colour={info.colour} seed={`${id}${k}`} n={shrubLike ? 3 : 1} />
         </G>
       ))}
       {ring}
     </G>
   );
+}
+
+/** Fine detail inside a plant symbol that hints at its leaf shape. */
+function LeafTexture({ kind, cx, cy, r, colour, seed }: { kind: Texture; cx: number; cy: number; r: number; colour: string; seed: string }) {
+  if (kind === 'none' || r < 5) return null;
+  const rand = rng(seed + 't');
+  const els: ReactElement[] = [];
+  if (kind === 'leafy') {
+    // Small curved leaf strokes, angled outwards.
+    const n = Math.min(9, Math.round(r / 3));
+    for (let k = 0; k < n; k++) {
+      const a = (k / n) * Math.PI * 2 + rand() * 0.5, d = r * (0.35 + rand() * 0.3), l = r * 0.22;
+      const x = cx + Math.cos(a) * d, y = cy + Math.sin(a) * d;
+      const b = a + 0.9;
+      els.push(<Path key={k} d={`M${x.toFixed(1)} ${y.toFixed(1)} q${(Math.cos(b) * l).toFixed(1)} ${(Math.sin(b) * l).toFixed(1)} ${(Math.cos(a) * l * 1.3).toFixed(1)} ${(Math.sin(a) * l * 1.3).toFixed(1)}`} stroke={colour} strokeWidth={0.5} fill="none" strokeLinecap="round" />);
+    }
+  } else if (kind === 'fine') {
+    const n = Math.min(26, Math.round(r * 1.4));
+    for (let k = 0; k < n; k++) {
+      const a = rand() * Math.PI * 2, d = Math.sqrt(rand()) * r * 0.78;
+      els.push(<Circle key={k} cx={cx + Math.cos(a) * d} cy={cy + Math.sin(a) * d} r={0.55} fill={colour} />);
+    }
+  } else if (kind === 'needle') {
+    const n = Math.min(22, Math.round(r * 1.2));
+    for (let k = 0; k < n; k++) {
+      const a = (k / n) * Math.PI * 2, d1 = r * (0.45 + rand() * 0.15), d2 = r * 0.85;
+      els.push(<Line key={k} x1={cx + Math.cos(a) * d1} y1={cy + Math.sin(a) * d1} x2={cx + Math.cos(a) * d2} y2={cy + Math.sin(a) * d2} stroke={colour} strokeWidth={0.45} strokeLinecap="round" />);
+    }
+  } else if (kind === 'frond') {
+    const n = 7;
+    for (let k = 0; k < n; k++) {
+      const a = (k / n) * Math.PI * 2 + rand() * 0.3;
+      const ex = cx + Math.cos(a) * r * 0.88, ey = cy + Math.sin(a) * r * 0.88;
+      const qx = cx + Math.cos(a + 0.35) * r * 0.5, qy = cy + Math.sin(a + 0.35) * r * 0.5;
+      els.push(<Path key={k} d={`M${cx.toFixed(1)} ${cy.toFixed(1)} Q${qx.toFixed(1)} ${qy.toFixed(1)} ${ex.toFixed(1)} ${ey.toFixed(1)}`} stroke={colour} strokeWidth={0.5} fill="none" />);
+    }
+  }
+  return <G opacity={0.55}>{els}</G>;
 }
 
 function FlowerDots({ cx, cy, r, colour, seed, n }: { cx: number; cy: number; r: number; colour: string; seed: string; n: number }) {
@@ -221,6 +282,12 @@ export function Surface({ f, X, Y, scale, clipId }: { f: Feature; X: Px; Y: Px; 
       for (let x = b.x0, k = 0; x < b.x1; x += sw, k++) {
         if (k % 2) tex.push(<Rect key={k} x={x} y={b.y0} width={sw} height={h} fill={PALETTE.lawnStripe} />);
       }
+      // Sparse grass tufts for a fine, mown texture.
+      const n = Math.min(260, Math.round((w * h) / 650));
+      for (let k = 0; k < n; k++) {
+        const x = b.x0 + rand() * w, y = b.y0 + rand() * h;
+        tex.push(<Path key={`g${k}`} d={`M${(x - 1.4).toFixed(1)} ${(y - 1.6).toFixed(1)} L${x.toFixed(1)} ${y.toFixed(1)} L${(x + 1.4).toFixed(1)} ${(y - 1.8).toFixed(1)}`} stroke="#a9c286" strokeWidth={0.5} fill="none" />);
+      }
       edge = { stroke: '#7f9a68', width: 0.6 };
       break;
     }
@@ -230,6 +297,8 @@ export function Surface({ f, X, Y, scale, clipId }: { f: Feature; X: Px; Y: Px; 
       for (let y = b.y0, row = 0; y < b.y1; y += sh, row++) {
         for (let x = b.x0 - (row % 2 ? sw / 2 : 0); x < b.x1; x += sw) {
           tex.push(<Rect key={`${row}-${x.toFixed(0)}`} x={x} y={y} width={sw} height={sh} fill={PALETTE.stone[Math.floor(rand() * 3)]} stroke={PALETTE.joint} strokeWidth={0.6} />);
+          // A light top-left edge on each slab gives the paving a little depth.
+          tex.push(<Path key={`h${row}-${x.toFixed(0)}`} d={`M${(x + 1).toFixed(1)} ${(y + sh - 1).toFixed(1)} V${(y + 1).toFixed(1)} H${(x + sw - 1).toFixed(1)}`} stroke="#ffffff" strokeOpacity={0.8} strokeWidth={0.7} fill="none" />);
         }
       }
       edge = { stroke: '#8f8a7f', width: 0.8 };
@@ -333,4 +402,155 @@ export function Surface({ f, X, Y, scale, clipId }: { f: Feature; X: Px; Y: Px; 
       {f.kind === 'raised_bed' && <Polygon points={pts} fill="none" stroke={PALETTE.ink} strokeWidth={0.4} />}
     </G>
   );
+}
+
+// ---------- furniture ----------
+
+const FURN = { fill: '#ffffff', line: '#3a3f3b', timber: '#efe3cc', timberLine: '#c4a983', cushion: '#f4f1ea' };
+
+/** A chair seen from above. rot 0 has the backrest at the top, so the sitter faces down the page. */
+function Chair({ cx, cy, s, rot }: { cx: number; cy: number; s: number; rot: number }) {
+  const w = 0.48 * s, d = 0.46 * s, back = 0.09 * s;
+  return (
+    <G rotation={rot} origin={`${cx}, ${cy}`}>
+      <Rect x={cx - w / 2 + 0.04 * s} y={cy - d / 2 + 0.04 * s} width={w} height={d} rx={0.07 * s} fill={PALETTE.shadow} />
+      <Rect x={cx - w / 2} y={cy - d / 2} width={w} height={d} rx={0.07 * s} fill={FURN.fill} stroke={FURN.line} strokeWidth={0.6} />
+      <Rect x={cx - w / 2} y={cy - d / 2 - back * 0.4} width={w} height={back} rx={back / 2} fill={FURN.line} />
+    </G>
+  );
+}
+
+function FurnShadow({ x, y, w, h, rx, scale }: { x: number; y: number; w: number; h: number; rx: number; scale: number }) {
+  const sh = shadowOffset(0.8, scale);
+  return <Rect x={x + sh.dx} y={y + sh.dy} width={w} height={h} rx={rx} fill={PALETTE.shadow} />;
+}
+
+export function FurnitureSymbol({ item, cx, cy, scale }: { item: Furniture; cx: number; cy: number; scale: number }) {
+  const s = scale;
+  const m = (v: number) => v * s;
+  let body: ReactElement | null = null;
+
+  switch (item.kind) {
+    case 'dining_set': {
+      const n = Math.max(2, item.seats || 6);
+      const ends = n >= 6 ? 2 : 0;
+      const perSide = Math.ceil((n - ends) / 2);
+      const L = Math.max(0.9, perSide * 0.62 + 0.25), W = 0.9;
+      const x0 = cx - m(L) / 2, y0 = cy - m(W) / 2;
+      const chairs: ReactElement[] = [];
+      for (let k = 0; k < perSide; k++) {
+        const x = x0 + m(0.25 / 2 + 0.31 + k * 0.62);
+        chairs.push(<Chair key={`t${k}`} cx={x} cy={y0 - m(0.2)} s={s} rot={0} />);
+        if (k < n - ends - perSide) chairs.push(<Chair key={`b${k}`} cx={x} cy={y0 + m(W) + m(0.2)} s={s} rot={180} />);
+      }
+      if (ends) {
+        chairs.push(<Chair key="l" cx={x0 - m(0.2)} cy={cy} s={s} rot={-90} />);
+        chairs.push(<Chair key="r" cx={x0 + m(L) + m(0.2)} cy={cy} s={s} rot={90} />);
+      }
+      const slats = Math.round(L / 0.12);
+      body = (
+        <G>
+          {chairs}
+          <FurnShadow x={x0} y={y0} w={m(L)} h={m(W)} rx={m(0.04)} scale={s} />
+          <Rect x={x0} y={y0} width={m(L)} height={m(W)} rx={m(0.04)} fill={FURN.timber} stroke={FURN.line} strokeWidth={0.8} />
+          {Array.from({ length: slats - 1 }, (_, k) => (
+            <Line key={k} x1={x0 + (m(L) * (k + 1)) / slats} y1={y0 + 1} x2={x0 + (m(L) * (k + 1)) / slats} y2={y0 + m(W) - 1} stroke={FURN.timberLine} strokeWidth={0.4} />
+          ))}
+        </G>
+      );
+      break;
+    }
+    case 'bistro_set': {
+      const n = Math.max(2, item.seats || 2);
+      const r = m(0.35);
+      body = (
+        <G>
+          <Circle cx={cx + shadowOffset(0.8, s).dx} cy={cy + shadowOffset(0.8, s).dy} r={r} fill={PALETTE.shadow} />
+          {Array.from({ length: n }, (_, k) => {
+            const deg = (k / n) * 360;
+            const a = ((deg - 90) * Math.PI) / 180;
+            return <Chair key={k} cx={cx + Math.cos(a) * (r + m(0.28))} cy={cy + Math.sin(a) * (r + m(0.28))} s={s} rot={deg} />;
+          })}
+          <Circle cx={cx} cy={cy} r={r} fill={FURN.timber} stroke={FURN.line} strokeWidth={0.8} />
+          <Circle cx={cx} cy={cy} r={r * 0.75} fill="none" stroke={FURN.timberLine} strokeWidth={0.4} />
+        </G>
+      );
+      break;
+    }
+    case 'bench': {
+      const L = 1.5, D = 0.5;
+      const x0 = cx - m(L) / 2, y0 = cy - m(D) / 2;
+      body = (
+        <G>
+          <FurnShadow x={x0} y={y0} w={m(L)} h={m(D)} rx={m(0.04)} scale={s} />
+          <Rect x={x0} y={y0} width={m(L)} height={m(D)} rx={m(0.04)} fill={FURN.timber} stroke={FURN.line} strokeWidth={0.8} />
+          {[0.33, 0.55, 0.77].map((f) => (
+            <Line key={f} x1={x0 + 1} y1={y0 + m(D) * f} x2={x0 + m(L) - 1} y2={y0 + m(D) * f} stroke={FURN.timberLine} strokeWidth={0.45} />
+          ))}
+          <Rect x={x0} y={y0} width={m(L)} height={m(0.11)} rx={m(0.03)} fill={FURN.line} />
+        </G>
+      );
+      break;
+    }
+    case 'lounger': {
+      const W = 0.68, L = 1.95;
+      const x0 = cx - m(W) / 2, y0 = cy - m(L) / 2;
+      body = (
+        <G>
+          <FurnShadow x={x0} y={y0} w={m(W)} h={m(L)} rx={m(0.08)} scale={s} />
+          <Rect x={x0} y={y0} width={m(W)} height={m(L)} rx={m(0.08)} fill={FURN.fill} stroke={FURN.line} strokeWidth={0.8} />
+          {/* Raised back rest, then the cushion and a pillow */}
+          <Line x1={x0} y1={y0 + m(0.62)} x2={x0 + m(W)} y2={y0 + m(0.62)} stroke={FURN.line} strokeWidth={0.6} />
+          <Rect x={x0 + m(0.06)} y={y0 + m(0.06)} width={m(W - 0.12)} height={m(L - 0.12)} rx={m(0.06)} fill={FURN.cushion} stroke={FURN.line} strokeOpacity={0.5} strokeWidth={0.4} />
+          <Rect x={x0 + m(0.12)} y={y0 + m(0.1)} width={m(W - 0.24)} height={m(0.3)} rx={m(0.1)} fill={FURN.fill} stroke={FURN.line} strokeWidth={0.5} />
+          {[0.95, 1.25, 1.55].map((f) => (
+            <Line key={f} x1={x0 + m(0.06)} y1={y0 + m(f)} x2={x0 + m(W - 0.06)} y2={y0 + m(f)} stroke={FURN.line} strokeOpacity={0.35} strokeWidth={0.4} />
+          ))}
+        </G>
+      );
+      break;
+    }
+    case 'sofa': {
+      const L = 2.0, D = 0.85, arm = 0.16, back = 0.2;
+      const x0 = cx - m(L) / 2, y0 = cy - m(D) / 2;
+      const seatW = (L - arm * 2) / 3;
+      body = (
+        <G>
+          <FurnShadow x={x0} y={y0} w={m(L)} h={m(D)} rx={m(0.1)} scale={s} />
+          <Rect x={x0} y={y0} width={m(L)} height={m(D)} rx={m(0.1)} fill={FURN.fill} stroke={FURN.line} strokeWidth={0.8} />
+          {[0, 1, 2].map((k) => (
+            <Rect key={k} x={x0 + m(arm + k * seatW) + 0.6} y={y0 + m(back)} width={m(seatW) - 1.2} height={m(D - back - 0.04)} rx={m(0.05)} fill={FURN.cushion} stroke={FURN.line} strokeWidth={0.5} />
+          ))}
+          <Line x1={x0 + m(arm)} y1={y0 + m(back)} x2={x0 + m(L - arm)} y2={y0 + m(back)} stroke={FURN.line} strokeWidth={0.6} />
+        </G>
+      );
+      break;
+    }
+    case 'fire_pit': {
+      const r = m(0.45);
+      body = (
+        <G>
+          <Circle cx={cx + shadowOffset(0.4, s).dx} cy={cy + shadowOffset(0.4, s).dy} r={r} fill={PALETTE.shadow} />
+          <Circle cx={cx} cy={cy} r={r} fill="#d9d5cc" stroke={FURN.line} strokeWidth={0.8} />
+          <Circle cx={cx} cy={cy} r={r * 0.7} fill="#5b524a" />
+          <Circle cx={cx} cy={cy} r={r * 0.4} fill="#e39a52" opacity={0.85} />
+        </G>
+      );
+      break;
+    }
+    case 'pot': {
+      const r = m(0.25);
+      const sh = shadowOffset(0.6, s);
+      body = (
+        <G>
+          <Circle cx={cx + sh.dx} cy={cy + sh.dy} r={r} fill={PALETTE.shadow} />
+          <Circle cx={cx} cy={cy} r={r} fill="#d39a72" stroke="#8c5a3c" strokeWidth={0.7} />
+          <Path d={scallop(cx, cy, r * 0.78, 8, item.id, 0.1)} fill={PALETTE.shrub} stroke={PALETTE.treeLine} strokeWidth={0.5} />
+        </G>
+      );
+      break;
+    }
+  }
+  if (!body) return null;
+  return item.rotDeg ? <G rotation={item.rotDeg} origin={`${cx}, ${cy}`}>{body}</G> : body;
 }
