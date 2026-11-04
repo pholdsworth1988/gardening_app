@@ -237,10 +237,14 @@ function Callouts({ garden, X, Y, scale, width }: { garden: Garden; X: (m: numbe
     const toLeft = X(c.x) < midX;
     let a = c;
     if (!stones) {
-      const near = f.points.filter((q) => Math.abs(q.y - c.y) < (Math.max(...f.points.map((p) => p.y)) - Math.min(...f.points.map((p) => p.y))) * 0.25);
-      const pool = near.length ? near : f.points;
-      const edge = pool.reduce((best, q) => (toLeft ? q.x < best.x : q.x > best.x) ? q : best, pool[0]);
-      a = { x: edge.x + (toLeft ? 0.25 : -0.25), y: edge.y };
+      // Where a level line through the middle crosses the shape's outline, on the label's side.
+      const xs: number[] = [];
+      f.points.forEach((p, i) => {
+        const q = f.points[(i + 1) % f.points.length];
+        if ((p.y <= c.y) !== (q.y <= c.y)) xs.push(p.x + ((c.y - p.y) * (q.x - p.x)) / (q.y - p.y));
+      });
+      const ex = xs.length ? (toLeft ? Math.min(...xs) : Math.max(...xs)) : c.x;
+      a = { x: ex + (toLeft ? 0.25 : -0.25), y: c.y };
     }
     const mat = f.material && !stones && !title.toLowerCase().includes(f.material) ? cap(f.material) : '';
     items.push({ ax: X(a.x), ay: Y(a.y), title, sub: mat, italic: false });

@@ -40,7 +40,11 @@ class Plant(BaseModel):
     latin_name: str
     x: float
     y: float
+    plant_type: Literal["Tree", "Shrub", "Perennial", "Climber", "Herb", "Grass"] = Field(
+        default="Perennial", description="What kind of plant it is, which sets its symbol on the plan"
+    )
     spread_m: float = Field(description="Mature spread in metres")
+    height_m: float = Field(default=0.6, description="Mature height in metres")
     quantity: int
     feature_id: str = Field(description="Id of the bed it sits in, or empty")
 

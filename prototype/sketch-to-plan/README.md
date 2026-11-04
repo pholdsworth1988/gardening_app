@@ -16,6 +16,21 @@ python sketch_to_layout.py my_sketch.jpg --width 8 --depth 12 > layout.json
 python render_plan.py layout.json plan.svg
 ```
 
+## Using it from the app
+
+The app never holds the API key. It sends the photo to `server.py`, which calls Claude:
+
+```bash
+export ANTHROPIC_API_KEY=...
+python server.py            # or: python server.py --fake  (sample layout, no key needed)
+cd ../../app && EXPO_PUBLIC_HEDGE_API_URL=http://<this computer's IP>:8787 npx expo start
+```
+
+The app turns the reply into an editable plan (`app/src/data/ai.ts`): circles become
+polygons, plants are matched to the plant library (new ones are added), and the layout is
+fitted to the size the user typed. Without `EXPO_PUBLIC_HEDGE_API_URL` the app uses the
+sample layout, as in the web preview.
+
 `sample_layout.json` and `sample_plan.svg` / `sample_plan.png` show the output style using a
 hand-written layout. The Claude step has not been run yet, because this workspace has no API key.
 

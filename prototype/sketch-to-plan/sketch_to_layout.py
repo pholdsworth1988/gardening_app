@@ -47,7 +47,11 @@ def sketch_to_layout(image_path: str, width_m: float, depth_m: float, notes: str
     media_type = mimetypes.guess_type(image_path)[0] or "image/jpeg"
     with open(image_path, "rb") as f:
         image_data = base64.standard_b64encode(f.read()).decode("utf-8")
+    return image_to_layout(image_data, media_type, width_m, depth_m, notes)
 
+
+def image_to_layout(image_data: str, media_type: str, width_m: float, depth_m: float, notes: str = "") -> GardenLayout:
+    """Same as sketch_to_layout, for an image already in base64 (as the app sends it)."""
     prompt = f"The garden is about {width_m} m wide and {depth_m} m deep."
     if notes:
         prompt += f" Notes from the gardener: {notes}"

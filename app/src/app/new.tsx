@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { ActivityIndicator, Image, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { Button, Chip, SampleBanner } from '@/components/ui';
+import { API_URL, layoutToGarden, readSketch } from '@/data/ai';
 import { makeLayoutFromSketch } from '@/data/sample';
 import { useStore } from '@/data/store';
 import type { Aspect } from '@/data/types';
@@ -16,6 +17,7 @@ export default function NewGarden() {
   const router = useRouter();
   const { saveGarden } = useStore();
   const [sketchUri, setSketchUri] = useState<string | null>(null);
+  const [photo, setPhoto] = useState<{ base64: string; mediaType: string } | null>(null);
   const [title, setTitle] = useState('My garden');
   const [width, setWidth] = useState('8');
   const [depth, setDepth] = useState('12');
@@ -33,9 +35,17 @@ export default function NewGarden() {
           return;
         }
       }
-      const opts: ImagePicker.ImagePickerOptions = { mediaTypes: ['images'], quality: 0.8 };
+      // Resized photos keep the upload small; Claude reads a sketch well at this size.
+      const opts: ImagePicker.ImagePickerOptions = { mediaTypes: ['images'], quality: 0.7, base64: true };
       const res = useCamera ? await ImagePicker.launchCameraAsync(opts) : await ImagePicker.launchImageLibraryAsync(opts);
-      if (!res.canceled && res.assets[0]) setSketchUri(res.assets[0].uri);
+      const a = !res.canceled ? res.assets[0] : undefined;
+      if (a) {
+        setSketchUri(a.uri);
+        // On the web the photo can arrive as a data URL instead of separate base64.
+        const m = /^data:([^;]+);base64,(.*)$/.exec(a.uri);
+        const base64 = a.base64 ?? m?.[2] ?? null;
+        setPhoto(base64 ? { base64, mediaType: a.mimeType ?? m?.[1] ?? 'image/jpeg' } : null);
+      }
     } catch {
       setError("Couldn't open the camera here. Choose a photo instead.");
     }
@@ -45,16 +55,35 @@ export default function NewGarden() {
   const d = parseFloat(depth);
   const sizeOk = w >= 2 && w <= 60 && d >= 2 && d <= 60;
 
-  const create = () => {
+  const create = async () => {
     if (!sizeOk) {
       setError('Enter a width and depth between 2 and 60 metres.');
       return;
     }
+    setError(null);
+    const id = `g${Date.now()}`;
+    const meta = { id, title: title.trim() || 'My garden', widthM: w, depthM: d, aspect, sketchUri };
+    if (API_URL) {
+      if (!photo) {
+        setError('Add a photo of your sketch first.');
+        return;
+      }
+      setWorking(true);
+      try {
+        const layout = await readSketch({ ...photo, widthM: w, depthM: d, notes: `The garden faces ${aspect.toLowerCase()}.` });
+        saveGarden(layoutToGarden(layout, meta));
+        router.replace(`/design/${id}`);
+      } catch (e) {
+        setError((e as Error).message);
+      } finally {
+        setWorking(false);
+      }
+      return;
+    }
+    // No sketch server set up (as in the web preview): use the sample layout at this size.
     setWorking(true);
-    // Stand-in for the Claude API call: wait briefly, then use the sample layout at this size.
     setTimeout(() => {
-      const id = `g${Date.now()}`;
-      saveGarden(makeLayoutFromSketch({ id, title: title.trim() || 'My garden', widthM: w, depthM: d, aspect, sketchUri }));
+      saveGarden(makeLayoutFromSketch(meta));
       setWorking(false);
       router.replace(`/design/${id}`);
     }, 1800);
@@ -66,7 +95,7 @@ export default function NewGarden() {
         <ActivityIndicator size="large" color={colors.hedge} />
         <Text style={type.heading}>Reading your sketch</Text>
         <Text style={[type.small, { textAlign: 'center', maxWidth: 280 }]}>
-          Finding beds, paths and plants, and measuring them against your garden size.
+          Finding beds, paths and plants, and measuring them against your garden size. This can take a minute.
         </Text>
       </View>
     );
@@ -107,7 +136,7 @@ export default function NewGarden() {
         </Field>
 
         {error && <Text style={{ color: colors.danger }}>{error}</Text>}
-        <SampleBanner text="Proof of concept: this uses a sample layout at your size instead of reading the sketch." />
+        {!API_URL && <SampleBanner text="Proof of concept: this uses a sample layout at your size instead of reading the sketch." />}
         <Button title="Create my design" onPress={create} />
       </ScrollView>
     </KeyboardAvoidingView>
