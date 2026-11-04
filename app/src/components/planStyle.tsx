@@ -79,6 +79,53 @@ const shadowOffset = (heightM: number, scale: number) => {
   return { dx: SUN.x * m, dy: SUN.y * m };
 };
 
+/**
+ * A hand-drawn version of a straight-edged outline: each edge wobbles slightly and
+ * overshoots its corners a little, the way a designer's pen does.
+ */
+export function sketchOutline(pts: { x: number; y: number }[], seed: string, closed = true, amp = 0.7) {
+  const rand = rng(seed + 'pen');
+  const n = closed ? pts.length : pts.length - 1;
+  let d = '';
+  for (let i = 0; i < n; i++) {
+    const a = pts[i], b = pts[(i + 1) % pts.length];
+    const len = Math.hypot(b.x - a.x, b.y - a.y);
+    if (len < 0.5) continue;
+    const ux = (b.x - a.x) / len, uy = (b.y - a.y) / len;
+    const over = Math.min(3.5, len * 0.08);
+    const sx = a.x - ux * over * rand(), sy = a.y - uy * over * rand();
+    const ex = b.x + ux * over * rand(), ey = b.y + uy * over * rand();
+    const steps = Math.max(1, Math.round(len / 14));
+    d += ` M${sx.toFixed(1)} ${sy.toFixed(1)}`;
+    for (let k = 1; k <= steps; k++) {
+      const t = k / steps;
+      const off = (rand() - 0.5) * 2 * amp;
+      const mx = sx + (ex - sx) * (t - 0.5 / steps) - uy * off;
+      const my = sy + (ey - sy) * (t - 0.5 / steps) + ux * off;
+      d += ` Q${mx.toFixed(1)} ${my.toFixed(1)} ${(sx + (ex - sx) * t).toFixed(1)} ${(sy + (ey - sy) * t).toFixed(1)}`;
+    }
+  }
+  return d.trim();
+}
+
+/** Marker strokes across the shadow side of a round plant, like a designer's felt-tip shading. */
+function MarkerShade({ cx, cy, r, colour, seed }: { cx: number; cy: number; r: number; colour: string; seed: string }) {
+  const rand = rng(seed + 'mk');
+  const R = r * 0.86;
+  const strokes = [];
+  const w = Math.max(1.4, r * 0.11);
+  for (let off = r * 0.05; off < R * 0.95; off += w * 0.9) {
+    const half = Math.sqrt(R * R - off * off) * (0.85 + rand() * 0.15);
+    // Centre of the chord, offset towards the shadow side (bottom right).
+    const mx = cx + off * Math.SQRT1_2, my = cy + off * Math.SQRT1_2;
+    strokes.push(
+      <Line key={off.toFixed(1)} x1={mx - half * Math.SQRT1_2} y1={my + half * Math.SQRT1_2} x2={mx + half * Math.SQRT1_2} y2={my - half * Math.SQRT1_2}
+        stroke={colour} strokeWidth={w} strokeLinecap="round" opacity={0.28 + rand() * 0.12} />,
+    );
+  }
+  return <G>{strokes}</G>;
+}
+
 // ---------- plant symbols ----------
 
 export function PlantSymbol({ info, id, cx, cy, quantity, scale, selected }: {
@@ -96,7 +143,8 @@ export function PlantSymbol({ info, id, cx, cy, quantity, scale, selected }: {
         <Path d={scallop(cx + sh.dx, cy + sh.dy, r, Math.round(10 + r / 6), id)} fill={PALETTE.shadow} />
         <Path d={canopy} fill={PALETTE.tree} />
         {/* Marker shading on the shadow side, highlight on the sunny side */}
-        <Path d={scallop(cx + r * 0.16, cy + r * 0.13, r * 0.84, Math.round(9 + r / 7), id + 's', 0.18)} fill={PALETTE.treeShade} opacity={0.55} />
+        <Path d={scallop(cx + r * 0.16, cy + r * 0.13, r * 0.84, Math.round(9 + r / 7), id + 's', 0.18)} fill={PALETTE.treeShade} opacity={0.3} />
+        <MarkerShade cx={cx} cy={cy} r={r} colour={PALETTE.treeShade} seed={id} />
         <Path d={scallop(cx - r * 0.2, cy - r * 0.18, r * 0.5, 8, id + 'i', 0.2)} fill={PALETTE.treeLight} opacity={0.85} />
         <Path d={canopy} fill="none" stroke={PALETTE.treeDark} strokeWidth={0.9} />
         {Array.from({ length: 6 }, (_, k) => {
@@ -139,7 +187,7 @@ export function PlantSymbol({ info, id, cx, cy, quantity, scale, selected }: {
         {positions.map((p, k) => (
           <G key={k}>
             <Path d={scallop(cx + p.x, cy + p.y, rr, 9, `${id}${k}`, 0.22)} fill={PALETTE.shrub} />
-            <Path d={scallop(cx + p.x + rr * 0.15, cy + p.y + rr * 0.12, rr * 0.8, 8, `${id}${k}s`, 0.22)} fill={PALETTE.shrubShade} opacity={0.5} />
+            <MarkerShade cx={cx + p.x} cy={cy + p.y} r={rr} colour={PALETTE.shrubShade} seed={`${id}${k}`} />
             <Path d={scallop(cx + p.x, cy + p.y, rr, 9, `${id}${k}`, 0.22)} fill="none" stroke={PALETTE.shrubDark} strokeWidth={0.8} />
             <Path d={`M${cx + p.x - rr * 0.35} ${cy + p.y} q${rr * 0.15} ${-rr * 0.25} ${rr * 0.3} 0 M${cx + p.x + rr * 0.05} ${cy + p.y + rr * 0.3} q${rr * 0.15} ${-rr * 0.25} ${rr * 0.3} 0`} stroke={PALETTE.shrubDark} strokeWidth={0.5} fill="none" opacity={0.6} />
             <FlowerDots cx={cx + p.x} cy={cy + p.y} r={rr} colour={info.colour} seed={`${id}${k}`} n={info.type === 'Climber' ? 6 : 4} />
@@ -160,7 +208,9 @@ export function PlantSymbol({ info, id, cx, cy, quantity, scale, selected }: {
       ))}
       {positions.map((p, k) => (
         <G key={k}>
-          <Path d={scallop(cx + p.x, cy + p.y, rr, 7, `${id}${k}`, 0.3)} fill={PALETTE.foliage} stroke={PALETTE.shrubDark} strokeWidth={0.6} />
+          <Path d={scallop(cx + p.x, cy + p.y, rr, 7, `${id}${k}`, 0.3)} fill={PALETTE.foliage} />
+          <MarkerShade cx={cx + p.x} cy={cy + p.y} r={rr} colour={PALETTE.shrubShade} seed={`${id}${k}`} />
+          <Path d={scallop(cx + p.x, cy + p.y, rr, 7, `${id}${k}`, 0.3)} fill="none" stroke={PALETTE.shrubDark} strokeWidth={0.6} />
           <FlowerDots cx={cx + p.x} cy={cy + p.y} r={rr} colour={info.colour} seed={`${id}${k}`} n={5} />
         </G>
       ))}
@@ -324,9 +374,13 @@ export function Surface({ f, X, Y, scale, clipId }: { f: Feature; X: Px; Y: Px; 
       </Defs>
       <Polygon points={pts} fill={base} />
       <G clipPath={`url(#${clipId})`}>{tex}</G>
-      <Polygon points={pts} fill="none" stroke={edge.stroke} strokeWidth={edge.width} />
-      {f.kind === 'raised_bed' && (
-        <Polygon points={pts} fill="none" stroke={PALETTE.ink} strokeWidth={0.4} />
+      {f.kind === 'raised_bed' ? (
+        <>
+          <Polygon points={pts} fill="none" stroke={edge.stroke} strokeWidth={edge.width} />
+          <Path d={sketchOutline(px, f.id)} fill="none" stroke={PALETTE.ink} strokeWidth={0.6} strokeLinecap="round" />
+        </>
+      ) : (
+        <Path d={sketchOutline(px, f.id)} fill="none" stroke={edge.stroke} strokeWidth={edge.width} strokeLinecap="round" />
       )}
     </G>
   );

@@ -1,7 +1,7 @@
 import Svg, { Circle, ClipPath, Defs, G, Line, Path, Polygon, Polyline, Rect, Text as SvgText } from 'react-native-svg';
 
 import { plantById } from '@/data/plants';
-import { PALETTE, PlantSymbol, Surface } from './planStyle';
+import { PALETTE, PlantSymbol, Surface, sketchOutline } from './planStyle';
 import type { Feature, Garden } from '@/data/types';
 
 export type Mode = 'plan' | 'concept';
@@ -9,8 +9,11 @@ export type Mode = 'plan' | 'concept';
 // Padding around the garden for dimensions, scale bar and north arrow.
 export const PAD = { left: 40, top: 34, right: 14, bottom: 58 };
 
-export function garden2px(garden: Garden, width: number) {
-  const scale = (width - PAD.left - PAD.right) / garden.widthM; // px per metre
+export const LABEL_COL = 116; // right-hand column for plant names
+
+export function garden2px(garden: Garden, width: number, annotate = false) {
+  const right = annotate ? LABEL_COL : PAD.right;
+  const scale = (width - PAD.left - right) / garden.widthM; // px per metre
   return {
     scale,
     height: garden.depthM * scale + PAD.top + PAD.bottom,
@@ -38,10 +41,11 @@ type Props = {
   selectedId?: string | null;
   showNumbers?: boolean;
   thumbnail?: boolean; // no labels or north arrow
+  annotate?: boolean; // plant names in a side column with leader lines
 };
 
-export default function GardenSvg({ garden, width, mode, selectedId, showNumbers = true, thumbnail = false }: Props) {
-  const { scale, height, X, Y } = garden2px(garden, width);
+export default function GardenSvg({ garden, width, mode, selectedId, showNumbers = true, thumbnail = false, annotate = false }: Props) {
+  const { scale, height, X, Y } = garden2px(garden, width, annotate && mode === 'plan');
   const plan = mode === 'plan';
   const gw = garden.widthM * scale;
   const gh = garden.depthM * scale;
@@ -119,7 +123,7 @@ export default function GardenSvg({ garden, width, mode, selectedId, showNumbers
         return (
           <G key={p.id}>
             {info && <PlantSymbol info={info} id={p.id} cx={cx} cy={cy} quantity={p.quantity} scale={scale} selected={selected} />}
-            {showNumbers && (
+            {showNumbers && !annotate && (
               <G>
                 <Line x1={cx} y1={cy} x2={cx + r * 0.75} y2={cy - r * 0.75} stroke={INK} strokeWidth={0.5} />
                 <Circle cx={cx + r * 0.75} cy={cy - r * 0.75} r={7.5} fill="#ffffff" stroke={INK} strokeWidth={0.8} />
@@ -153,8 +157,13 @@ export default function GardenSvg({ garden, width, mode, selectedId, showNumbers
         );
       })}
 
-      <Rect x={X(0)} y={Y(0)} width={gw} height={gh} fill="none" stroke={INK} strokeWidth={plan ? 2.6 : 1} />
-      {plan && <Rect x={X(0) - 3} y={Y(0) - 3} width={gw + 6} height={gh + 6} fill="none" stroke={INK} strokeWidth={0.5} />}
+      {plan ? (
+        <Path d={sketchOutline([{ x: X(0), y: Y(0) }, { x: X(garden.widthM), y: Y(0) }, { x: X(garden.widthM), y: Y(garden.depthM) }, { x: X(0), y: Y(garden.depthM) }], garden.id + 'b', true, 0.9)}
+          fill="none" stroke={INK} strokeWidth={2.6} strokeLinecap="round" />
+      ) : (
+        <Rect x={X(0)} y={Y(0)} width={gw} height={gh} fill="none" stroke={INK} strokeWidth={1} />
+      )}
+      {plan && annotate && <PlantLabels garden={garden} X={X} Y={Y} scale={scale} width={width} />}
 
       {plan && (
         <G>
@@ -165,6 +174,44 @@ export default function GardenSvg({ garden, width, mode, selectedId, showNumbers
       )}
       {!thumbnail && <NorthArrow cx={X(garden.widthM) - 18} cy={Y(garden.depthM) + 32} deg={garden.northDeg} />}
     </Svg>
+  );
+}
+
+// Plant names down the right-hand side, each joined to its plant by a leader line.
+function PlantLabels({ garden, X, Y, scale, width }: { garden: Garden; X: (m: number) => number; Y: (m: number) => number; scale: number; width: number }) {
+  const colX = X(garden.widthM) + 16;
+  const items = garden.plants
+    .map((p) => ({ p, info: plantById(p.plantId) }))
+    .filter((it) => it.info)
+    .sort((a, b) => a.p.y - b.p.y);
+  // Spread labels so they never overlap, keeping each near its plant's height on the page.
+  const gap = 24;
+  const ys: number[] = [];
+  items.forEach((it, i) => {
+    const want = Y(it.p.y);
+    ys.push(i === 0 ? Math.max(want, Y(0) + 8) : Math.max(want, ys[i - 1] + gap));
+  });
+  const overflow = ys.length ? ys[ys.length - 1] - (Y(garden.depthM) - 8) : 0;
+  if (overflow > 0) for (let i = ys.length - 1; i >= 0; i--) ys[i] = Math.min(ys[i] - overflow, i < ys.length - 1 ? ys[i + 1] - gap : Infinity);
+  const maxChars = Math.floor((width - colX - 4) / 5.2);
+  const trim = (t: string) => (t.length > maxChars ? t.slice(0, maxChars - 1) + '…' : t);
+  return (
+    <G>
+      {items.map(({ p, info }, i) => {
+        const r = Math.max((info!.spreadM / 2) * scale, 4);
+        const sx = X(p.x) + r * 0.7, sy = Y(p.y) - r * 0.2;
+        const y = ys[i];
+        const elbow = X(garden.widthM) + 6;
+        return (
+          <G key={p.id}>
+            <Path d={`M${sx} ${sy} L${elbow} ${y} H${colX - 3}`} stroke={INK} strokeWidth={0.5} fill="none" />
+            <Circle cx={sx} cy={sy} r={1.4} fill={INK} />
+            <SvgText x={colX} y={y - 1} fontSize={9.5} fill={INK}>{trim(`${info!.commonName}${p.quantity > 1 ? ` ×${p.quantity}` : ''}`)}</SvgText>
+            <SvgText x={colX} y={y + 9} fontSize={7.5} fontStyle="italic" fill="#5b625d">{trim(info!.latinName)}</SvgText>
+          </G>
+        );
+      })}
+    </G>
   );
 }
 
