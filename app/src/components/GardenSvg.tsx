@@ -1,6 +1,7 @@
-import Svg, { Circle, G, Line, Path, Polygon, Polyline, Rect, Text as SvgText } from 'react-native-svg';
+import Svg, { Circle, ClipPath, Defs, G, Line, Path, Polygon, Polyline, Rect, Text as SvgText } from 'react-native-svg';
 
 import { plantById } from '@/data/plants';
+import { PALETTE, PlantSymbol, Surface } from './planStyle';
 import type { Feature, Garden } from '@/data/types';
 
 export type Mode = 'plan' | 'concept';
@@ -51,22 +52,29 @@ export default function GardenSvg({ garden, width, mode, selectedId, showNumbers
 
   return (
     <Svg width={width} height={height} viewBox={`0 0 ${width} ${height}`} fontFamily={FONT}>
-      <Rect x={0} y={0} width={width} height={height} fill={plan ? '#ffffff' : '#f3f0e6'} />
+      <Rect x={0} y={0} width={width} height={height} fill={plan ? PALETTE.paper : '#f3f0e6'} />
 
-      {/* 1 m grid on the plan */}
+      {/* Metre ticks along the boundary, as on a drawn plan */}
       {plan && (
         <G>
           {Array.from({ length: Math.floor(garden.widthM) + 1 }, (_, i) => (
-            <Line key={`gx${i}`} x1={X(i)} y1={Y(0)} x2={X(i)} y2={Y(garden.depthM)} stroke="#e6e9e6" strokeWidth={0.6} />
+            <Line key={`tx${i}`} x1={X(i)} y1={Y(0) - 4} x2={X(i)} y2={Y(0)} stroke={INK} strokeWidth={0.5} />
           ))}
           {Array.from({ length: Math.floor(garden.depthM) + 1 }, (_, j) => (
-            <Line key={`gy${j}`} x1={X(0)} y1={Y(j)} x2={X(garden.widthM)} y2={Y(j)} stroke="#e6e9e6" strokeWidth={0.6} />
+            <Line key={`ty${j}`} x1={X(0) - 4} y1={Y(j)} x2={X(0)} y2={Y(j)} stroke={INK} strokeWidth={0.5} />
           ))}
         </G>
       )}
 
       {!plan && <Rect x={X(0)} y={Y(0)} width={gw} height={gh} fill="#b7cf9f" />}
 
+      {/* Keep everything, shadows included, inside the garden boundary */}
+      <Defs>
+        <ClipPath id={`garden-${garden.id}-${mode}`}>
+          <Rect x={X(0)} y={Y(0)} width={gw} height={gh} />
+        </ClipPath>
+      </Defs>
+      <G clipPath={`url(#garden-${garden.id}-${mode})`}>
       {feats.map((f) => {
         const fill = (plan ? PLAN_FILL : CONCEPT_FILL)[f.kind] ?? (plan ? '#f4f4f1' : '#c9c2b2');
         const selected = f.id === selectedId;
@@ -79,17 +87,21 @@ export default function GardenSvg({ garden, width, mode, selectedId, showNumbers
         if (f.kind === 'fence' || f.kind === 'wall') {
           return <Polyline key={f.id} points={pts} fill="none" stroke={stroke} strokeWidth={2.2} strokeDasharray={f.kind === 'fence' ? '6 3' : undefined} />;
         }
-        return (
-          <G key={f.id}>
-            <Polygon points={pts} fill={fill} stroke={stroke} strokeWidth={sw} />
-            {plan && (f.kind === 'shed' || f.kind === 'house') && <Hatch f={f} X={X} Y={Y} />}
-            {plan && f.kind === 'patio' && <Paving f={f} X={X} Y={Y} scale={scale} />}
-          </G>
-        );
+        if (plan) {
+          return (
+            <G key={f.id}>
+              <Surface f={f} X={X} Y={Y} scale={scale} clipId={`clip-${garden.id}-${f.id}`} />
+              {selected && <Polygon points={pts} fill="none" stroke="#2f5d3a" strokeWidth={3} strokeDasharray="6 3" />}
+            </G>
+          );
+        }
+        return <Polygon key={f.id} points={pts} fill={fill} stroke={stroke} strokeWidth={sw} />;
       })}
 
       {/* Plants */}
-      {garden.plants.map((p, i) => {
+      {[...garden.plants.map((p, i) => ({ p, i }))]
+        .sort((a, b) => (plantById(a.p.plantId)?.heightM ?? 0) - (plantById(b.p.plantId)?.heightM ?? 0))
+        .map(({ p, i }) => {
         const info = plantById(p.plantId);
         const r = Math.max(((info?.spreadM ?? 0.5) / 2) * scale, 5);
         const cx = X(p.x);
@@ -106,22 +118,28 @@ export default function GardenSvg({ garden, width, mode, selectedId, showNumbers
         }
         return (
           <G key={p.id}>
-            <Circle cx={cx} cy={cy} r={r} fill="#b9d3a8" fillOpacity={0.6} stroke={selected ? '#2f5d3a' : '#4e6b45'} strokeWidth={selected ? 3 : 0.9} />
-            <Path d={`M${cx - 3} ${cy} H${cx + 3} M${cx} ${cy - 3} V${cy + 3}`} stroke="#4e6b45" strokeWidth={0.8} />
+            {info && <PlantSymbol info={info} id={p.id} cx={cx} cy={cy} quantity={p.quantity} scale={scale} selected={selected} />}
             {showNumbers && (
               <G>
-                <Circle cx={cx + r * 0.7} cy={cy - r * 0.7} r={7.5} fill="#ffffff" stroke={INK} strokeWidth={0.8} />
-                <SvgText x={cx + r * 0.7} y={cy - r * 0.7 + 3.4} fontSize={9} textAnchor="middle" fill={INK}>{i + 1}</SvgText>
+                <Line x1={cx} y1={cy} x2={cx + r * 0.75} y2={cy - r * 0.75} stroke={INK} strokeWidth={0.5} />
+                <Circle cx={cx + r * 0.75} cy={cy - r * 0.75} r={7.5} fill="#ffffff" stroke={INK} strokeWidth={0.8} />
+                <SvgText x={cx + r * 0.75} y={cy - r * 0.75 + 3.4} fontSize={9} textAnchor="middle" fill={INK}>{i + 1}</SvgText>
               </G>
             )}
           </G>
         );
       })}
 
+      </G>
+
       {/* Labels */}
       {!thumbnail && feats.filter((f) => f.kind !== 'fence' && f.kind !== 'wall').map((f) => {
         const common = {
-          x: X(f.center.x), y: Y(f.center.y) + 4, fontSize: plan ? 10 : 11,
+          x: X(f.center.x),
+          y: plan && (f.kind === 'bed' || f.kind === 'raised_bed')
+            ? Y(Math.max(...f.points.map((q) => q.y))) - 6
+            : Y(f.center.y) + 4,
+          fontSize: plan ? 10 : 11,
           fontWeight: plan ? '400' : '600', letterSpacing: 0.6, textAnchor: 'middle' as const,
         };
         return (
@@ -135,7 +153,8 @@ export default function GardenSvg({ garden, width, mode, selectedId, showNumbers
         );
       })}
 
-      <Rect x={X(0)} y={Y(0)} width={gw} height={gh} fill="none" stroke={INK} strokeWidth={plan ? 2.2 : 1} />
+      <Rect x={X(0)} y={Y(0)} width={gw} height={gh} fill="none" stroke={INK} strokeWidth={plan ? 2.6 : 1} />
+      {plan && <Rect x={X(0) - 3} y={Y(0) - 3} width={gw + 6} height={gh + 6} fill="none" stroke={INK} strokeWidth={0.5} />}
 
       {plan && (
         <G>
@@ -147,35 +166,6 @@ export default function GardenSvg({ garden, width, mode, selectedId, showNumbers
       {!thumbnail && <NorthArrow cx={X(garden.widthM) - 18} cy={Y(garden.depthM) + 32} deg={garden.northDeg} />}
     </Svg>
   );
-}
-
-function Hatch({ f, X, Y }: { f: Feature; X: (m: number) => number; Y: (m: number) => number }) {
-  const xs = f.points.map((p) => X(p.x));
-  const ys = f.points.map((p) => Y(p.y));
-  const [x0, x1, y0, y1] = [Math.min(...xs), Math.max(...xs), Math.min(...ys), Math.max(...ys)];
-  const lines = [];
-  for (let k = -(y1 - y0); k < x1 - x0; k += 8) {
-    const ax = Math.max(x0, x0 + k);
-    const ay = y0 + Math.max(0, -k);
-    const len = Math.min(x1 - ax, y1 - ay);
-    lines.push(<Line key={k} x1={ax} y1={ay} x2={ax + len} y2={ay + len} stroke="#8a8f89" strokeWidth={0.7} />);
-  }
-  return <G>{lines}</G>;
-}
-
-function Paving({ f, X, Y, scale }: { f: Feature; X: (m: number) => number; Y: (m: number) => number; scale: number }) {
-  const xs = f.points.map((p) => X(p.x));
-  const ys = f.points.map((p) => Y(p.y));
-  const [x0, x1, y0, y1] = [Math.min(...xs), Math.max(...xs), Math.min(...ys), Math.max(...ys)];
-  const step = 0.6 * scale; // 600 mm slabs
-  const lines = [];
-  for (let y = y0 + step, row = 0; y < y1; y += step, row++) {
-    lines.push(<Line key={`r${row}`} x1={x0} y1={y} x2={x1} y2={y} stroke="#c2bfb5" strokeWidth={0.6} />);
-  }
-  for (let x = x0 + step, c = 0; x < x1; x += step, c++) {
-    lines.push(<Line key={`c${c}`} x1={x} y1={y0} x2={x} y2={y1} stroke="#c2bfb5" strokeWidth={0.6} />);
-  }
-  return <G>{lines}</G>;
 }
 
 function DimLine({ x1, y1, x2, y2, text, vertical }: { x1: number; y1: number; x2: number; y2: number; text: string; vertical?: boolean }) {
