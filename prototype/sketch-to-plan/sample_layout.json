@@ -1,0 +1,337 @@
+{
+  "title": "Back garden",
+  "width_m": 8,
+  "depth_m": 12,
+  "north_deg": 20,
+  "features": [
+    {
+      "id": "F1",
+      "kind": "lawn",
+      "label": "Lawn",
+      "shape": "polygon",
+      "points": [
+        {
+          "x": 2.2,
+          "y": 3.0
+        },
+        {
+          "x": 6.8,
+          "y": 3.0
+        },
+        {
+          "x": 6.8,
+          "y": 8.2
+        },
+        {
+          "x": 2.2,
+          "y": 8.2
+        }
+      ],
+      "center": {
+        "x": 4.5,
+        "y": 5.6
+      },
+      "radius_m": 0,
+      "material": ""
+    },
+    {
+      "id": "F2",
+      "kind": "bed",
+      "label": "Border",
+      "shape": "polygon",
+      "points": [
+        {
+          "x": 0,
+          "y": 3.0
+        },
+        {
+          "x": 2.2,
+          "y": 3.0
+        },
+        {
+          "x": 2.2,
+          "y": 9.0
+        },
+        {
+          "x": 0,
+          "y": 9.0
+        }
+      ],
+      "center": {
+        "x": 1.1,
+        "y": 6.0
+      },
+      "radius_m": 0,
+      "material": ""
+    },
+    {
+      "id": "F3",
+      "kind": "bed",
+      "label": "Border",
+      "shape": "polygon",
+      "points": [
+        {
+          "x": 6.8,
+          "y": 3.0
+        },
+        {
+          "x": 8.0,
+          "y": 3.0
+        },
+        {
+          "x": 8.0,
+          "y": 9.0
+        },
+        {
+          "x": 6.8,
+          "y": 9.0
+        }
+      ],
+      "center": {
+        "x": 7.4,
+        "y": 6.0
+      },
+      "radius_m": 0,
+      "material": ""
+    },
+    {
+      "id": "F4",
+      "kind": "path",
+      "label": "Gravel path",
+      "shape": "polygon",
+      "points": [
+        {
+          "x": 2.2,
+          "y": 8.2
+        },
+        {
+          "x": 6.8,
+          "y": 8.2
+        },
+        {
+          "x": 6.8,
+          "y": 9.0
+        },
+        {
+          "x": 2.2,
+          "y": 9.0
+        }
+      ],
+      "center": {
+        "x": 4.5,
+        "y": 8.68
+      },
+      "radius_m": 0,
+      "material": "gravel"
+    },
+    {
+      "id": "F5",
+      "kind": "patio",
+      "label": "Patio",
+      "shape": "polygon",
+      "points": [
+        {
+          "x": 0,
+          "y": 9.0
+        },
+        {
+          "x": 8,
+          "y": 9.0
+        },
+        {
+          "x": 8,
+          "y": 12.0
+        },
+        {
+          "x": 0,
+          "y": 12.0
+        }
+      ],
+      "center": {
+        "x": 4.0,
+        "y": 10.5
+      },
+      "radius_m": 0,
+      "material": "sandstone"
+    },
+    {
+      "id": "F6",
+      "kind": "shed",
+      "label": "Shed",
+      "shape": "polygon",
+      "points": [
+        {
+          "x": 5.4,
+          "y": 0.3
+        },
+        {
+          "x": 7.800000000000001,
+          "y": 0.3
+        },
+        {
+          "x": 7.800000000000001,
+          "y": 2.1
+        },
+        {
+          "x": 5.4,
+          "y": 2.1
+        }
+      ],
+      "center": {
+        "x": 6.6000000000000005,
+        "y": 1.2
+      },
+      "radius_m": 0,
+      "material": ""
+    },
+    {
+      "id": "F7",
+      "kind": "raised_bed",
+      "label": "Veg beds",
+      "shape": "polygon",
+      "points": [
+        {
+          "x": 0.3,
+          "y": 0.4
+        },
+        {
+          "x": 3.9,
+          "y": 0.4
+        },
+        {
+          "x": 3.9,
+          "y": 2.0
+        },
+        {
+          "x": 0.3,
+          "y": 2.0
+        }
+      ],
+      "center": {
+        "x": 2.1,
+        "y": 1.2
+      },
+      "radius_m": 0,
+      "material": ""
+    },
+    {
+      "id": "F8",
+      "kind": "path",
+      "label": "Bark path",
+      "shape": "polygon",
+      "points": [
+        {
+          "x": 0,
+          "y": 2.2
+        },
+        {
+          "x": 8,
+          "y": 2.2
+        },
+        {
+          "x": 8,
+          "y": 3.0
+        },
+        {
+          "x": 0,
+          "y": 3.0
+        }
+      ],
+      "center": {
+        "x": 4.6,
+        "y": 2.68
+      },
+      "radius_m": 0,
+      "material": "bark"
+    },
+    {
+      "id": "F9",
+      "kind": "fence",
+      "label": "Fence",
+      "shape": "polygon",
+      "points": [
+        {
+          "x": 0,
+          "y": 0
+        },
+        {
+          "x": 8,
+          "y": 0
+        }
+      ],
+      "center": {
+        "x": 4.0,
+        "y": 0.0
+      },
+      "radius_m": 0,
+      "material": ""
+    }
+  ],
+  "plants": [
+    {
+      "id": "P1",
+      "common_name": "Japanese maple",
+      "latin_name": "Acer palmatum",
+      "x": 1.1,
+      "y": 4.2,
+      "spread_m": 2.0,
+      "quantity": 1,
+      "feature_id": "F2"
+    },
+    {
+      "id": "P2",
+      "common_name": "Lavender",
+      "latin_name": "Lavandula angustifolia 'Hidcote'",
+      "x": 1.1,
+      "y": 6.4,
+      "spread_m": 0.6,
+      "quantity": 5,
+      "feature_id": "F2"
+    },
+    {
+      "id": "P3",
+      "common_name": "Hardy geranium",
+      "latin_name": "Geranium 'Rozanne'",
+      "x": 1.4,
+      "y": 7.9,
+      "spread_m": 0.8,
+      "quantity": 3,
+      "feature_id": "F2"
+    },
+    {
+      "id": "P4",
+      "common_name": "Climbing rose",
+      "latin_name": "Rosa 'Gertrude Jekyll'",
+      "x": 7.4,
+      "y": 4.0,
+      "spread_m": 1.2,
+      "quantity": 1,
+      "feature_id": "F3"
+    },
+    {
+      "id": "P5",
+      "common_name": "Catmint",
+      "latin_name": "Nepeta x faassenii",
+      "x": 7.4,
+      "y": 6.0,
+      "spread_m": 0.7,
+      "quantity": 4,
+      "feature_id": "F3"
+    },
+    {
+      "id": "P6",
+      "common_name": "Rosemary",
+      "latin_name": "Salvia rosmarinus",
+      "x": 7.4,
+      "y": 7.9,
+      "spread_m": 0.9,
+      "quantity": 1,
+      "feature_id": "F3"
+    }
+  ],
+  "assumptions": [
+    "Garden size taken from the gardener: 8 m by 12 m.",
+    "Patio depth read from the sketch as about a quarter of the garden.",
+    "Border plants suggested because the sketch left the beds unplanted."
+  ]
+}
