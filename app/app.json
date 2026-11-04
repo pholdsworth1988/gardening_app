@@ -1,0 +1,38 @@
+{
+  "expo": {
+    "name": "Hedge",
+    "slug": "hedge",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "ios": {
+      "supportsTablet": true
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#E7EFE3",
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "backgroundImage": "./assets/android-icon-background.png",
+        "monochromeImage": "./assets/android-icon-monochrome.png"
+      },
+      "predictiveBackGestureEnabled": false
+    },
+    "web": {
+      "favicon": "./assets/favicon.png",
+      "output": "single",
+      "bundler": "metro"
+    },
+    "plugins": [
+      "expo-router",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Hedge uses your photos so you can add a sketch of your garden.",
+          "cameraPermission": "Hedge uses the camera so you can photograph a sketch of your garden."
+        }
+      ]
+    ],
+    "scheme": "hedge"
+  }
+}

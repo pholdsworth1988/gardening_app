@@ -28,17 +28,30 @@ Rules:
 - Keep every feature inside the garden boundary, and keep features from overlapping
   unless the sketch shows them overlapping (a path crossing a lawn is fine).
 - Beds, lawns, patios and paths are polygons. Trees, ponds and round features can be circles.
+- Keep the flow of the sketch. Where an edge is drawn curved, trace it with enough
+  polygon points (about one every 0.3 m) that it reads as a smooth curve, not a corner.
+  Never straighten a curved lawn, border or path into a rectangle.
+- A stepping-stone path is a `path` with material `stepping_stones`; its points are the
+  path's centre line from one end to the other.
 - Where the sketch names plants, place them inside their bed with realistic mature
   spreads. Where a bed is drawn but not planted, suggest 2 to 4 plants suited to a
   typical home garden and say so in `assumptions`.
-- Use common plant names that a home gardener would recognise, with the Latin name."""
+- Use common plant names that a home gardener would recognise, with the Latin name.
+- Put garden furniture in `furniture`: anything drawn or named on the sketch, such
+  as a table and chairs, bench or loungers. Where a patio or decking has no seating,
+  suggest a sensible set (for example a dining set for 4 to 6) and say so in
+  `assumptions`. Keep furniture on hard surfaces or lawn, never in beds."""
 
 
 def sketch_to_layout(image_path: str, width_m: float, depth_m: float, notes: str = "") -> GardenLayout:
     media_type = mimetypes.guess_type(image_path)[0] or "image/jpeg"
     with open(image_path, "rb") as f:
         image_data = base64.standard_b64encode(f.read()).decode("utf-8")
+    return image_to_layout(image_data, media_type, width_m, depth_m, notes)
 
+
+def image_to_layout(image_data: str, media_type: str, width_m: float, depth_m: float, notes: str = "") -> GardenLayout:
+    """Same as sketch_to_layout, for an image already in base64 (as the app sends it)."""
     prompt = f"The garden is about {width_m} m wide and {depth_m} m deep."
     if notes:
         prompt += f" Notes from the gardener: {notes}"
