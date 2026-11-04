@@ -1,7 +1,7 @@
 import Svg, { Circle, ClipPath, Defs, G, Line, Path, Polygon, Polyline, Rect, Text as SvgText } from 'react-native-svg';
 
 import { plantById } from '@/data/plants';
-import { PALETTE, PlantSymbol, Surface, sketchOutline } from './planStyle';
+import { PALETTE, PlanDefs, PlantSymbol, Surface } from './planStyle';
 import type { Feature, Garden } from '@/data/types';
 
 export type Mode = 'plan' | 'concept';
@@ -72,6 +72,8 @@ export default function GardenSvg({ garden, width, mode, selectedId, showNumbers
 
       {!plan && <Rect x={X(0)} y={Y(0)} width={gw} height={gh} fill="#b7cf9f" />}
 
+      {plan && <PlanDefs prefix={`g-${garden.id}`} />}
+
       {/* Keep everything, shadows included, inside the garden boundary */}
       <Defs>
         <ClipPath id={`garden-${garden.id}-${mode}`}>
@@ -122,14 +124,21 @@ export default function GardenSvg({ garden, width, mode, selectedId, showNumbers
         }
         return (
           <G key={p.id}>
-            {info && <PlantSymbol info={info} id={p.id} cx={cx} cy={cy} quantity={p.quantity} scale={scale} selected={selected} />}
-            {showNumbers && !annotate && (
-              <G>
-                <Line x1={cx} y1={cy} x2={cx + r * 0.75} y2={cy - r * 0.75} stroke={INK} strokeWidth={0.5} />
-                <Circle cx={cx + r * 0.75} cy={cy - r * 0.75} r={7.5} fill="#ffffff" stroke={INK} strokeWidth={0.8} />
-                <SvgText x={cx + r * 0.75} y={cy - r * 0.75 + 3.4} fontSize={9} textAnchor="middle" fill={INK}>{i + 1}</SvgText>
-              </G>
-            )}
+            {info && <PlantSymbol info={info} id={p.id} cx={cx} cy={cy} quantity={p.quantity} scale={scale} selected={selected} gradPrefix={`g-${garden.id}`} />}
+            {showNumbers && !annotate && (() => {
+              // Tag sits at the canopy's top-right; flip to top-left near the right boundary.
+              const flip = cx + r * 0.71 + 13 > X(0) + gw;
+              const dx = flip ? -1 : 1;
+              const ex = cx + dx * r * 0.71, ey = cy - r * 0.71;
+              const tx = ex + dx * 5, ty = Math.max(Y(0) + 8, ey - 5);
+              return (
+                <G>
+                  <Line x1={ex} y1={ey} x2={tx} y2={ty} stroke={INK} strokeWidth={0.6} />
+                  <Circle cx={tx} cy={ty} r={6.5} fill={INK} />
+                  <SvgText x={tx} y={ty + 3} fontSize={8} fontWeight="700" textAnchor="middle" fill="#ffffff">{i + 1}</SvgText>
+                </G>
+              );
+            })()}
           </G>
         );
       })}
@@ -157,12 +166,7 @@ export default function GardenSvg({ garden, width, mode, selectedId, showNumbers
         );
       })}
 
-      {plan ? (
-        <Path d={sketchOutline([{ x: X(0), y: Y(0) }, { x: X(garden.widthM), y: Y(0) }, { x: X(garden.widthM), y: Y(garden.depthM) }, { x: X(0), y: Y(garden.depthM) }], garden.id + 'b', true, 0.9)}
-          fill="none" stroke={INK} strokeWidth={2.6} strokeLinecap="round" />
-      ) : (
-        <Rect x={X(0)} y={Y(0)} width={gw} height={gh} fill="none" stroke={INK} strokeWidth={1} />
-      )}
+      <Rect x={X(0)} y={Y(0)} width={gw} height={gh} fill="none" stroke={INK} strokeWidth={plan ? 2.2 : 1} />
       {plan && annotate && <PlantLabels garden={garden} X={X} Y={Y} scale={scale} width={width} />}
 
       {plan && (

@@ -3,30 +3,31 @@
 // and stays editable. All randomness is seeded from ids, so a plan always looks the same.
 
 import type { ReactElement } from 'react';
-import { Circle, ClipPath, Defs, G, Line, Path, Polygon, Rect } from 'react-native-svg';
+import { Circle, ClipPath, Defs, G, Line, Path, Polygon, RadialGradient, Rect, Stop } from 'react-native-svg';
 
 import type { PlantInfo } from '@/data/plants';
 import type { Feature } from '@/data/types';
 
 type Px = (m: number) => number;
 
-// Palette matched to Phil's reference: hand-rendered marker plans on white paper,
-// bright yellow-greens with darker shading on the shadow side, crisp black linework.
+// Refined, computer-drawn palette: calm greens, warm neutrals, crisp ink.
 export const PALETTE = {
   paper: '#ffffff',
-  ink: '#1d2420',
-  shadow: 'rgba(30, 40, 28, 0.22)',
-  lawn: '#dcebb3', lawnStripe: '#d0e3a1',
-  soil: '#efe6d4', soilDot: '#c4b08f',
-  stone: ['#efefec', '#e8e7e2', '#f4f3f0'], joint: '#b9b6ad',
-  gravel: '#f1ede3', gravelDot: ['#bdb4a1', '#a39a86', '#d2cab8'],
-  bark: '#d3b993', barkFleck: '#93734f',
-  timber: '#8a6a44', deck: '#e3cfae', deckLine: '#a98a63',
-  roof: '#e6e3dd', roofLine: '#b3afa6',
-  water: '#bfe0ea', ripple: '#7fb0c2',
-  tree: '#b8d36b', treeShade: '#7ea43f', treeDark: '#3f5f2a', treeLight: '#dcebA0',
-  shrub: '#97c457', shrubShade: '#6b9634', shrubDark: '#3f5f2a',
-  foliage: '#a8cf63', grass: '#b8a265',
+  ink: '#1f2622',
+  shadow: 'rgba(36, 48, 34, 0.14)',
+  lawn: '#d9e7bf', lawnStripe: '#d1e1b3',
+  soil: '#f1e9dc', soilDot: '#d6c8ae',
+  stone: ['#efeeea', '#e9e7e2', '#f3f2ef'], joint: '#c9c5bb',
+  gravel: '#f3f0e9', gravelDot: ['#cdc5b4', '#bab29f', '#ded8c9'],
+  bark: '#dfcaab', barkFleck: '#ad9070',
+  timber: '#9a7b55', deck: '#e6d5b8', deckLine: '#b89b74',
+  roof: '#ebe9e4', roofLine: '#c4c0b7',
+  water: '#c9e3ec', ripple: '#93bccb',
+  // Plant gradients: light centre (sun from top left) to a deeper edge.
+  treeHi: '#d3e6ad', tree: '#9fc275', treeEdge: '#76a052', treeLine: '#4d6d3a',
+  shrubHi: '#c4dd98', shrub: '#8fb867', shrubEdge: '#6c9a4c',
+  foliageHi: '#d0e5ac', foliage: '#a6c97f', foliageEdge: '#83ad62',
+  grass: '#b5a66c',
 };
 
 // Shadows fall towards the bottom right, as if the sun were top left of the sheet.
@@ -79,95 +80,71 @@ const shadowOffset = (heightM: number, scale: number) => {
   return { dx: SUN.x * m, dy: SUN.y * m };
 };
 
-/**
- * A hand-drawn version of a straight-edged outline: each edge wobbles slightly and
- * overshoots its corners a little, the way a designer's pen does.
- */
-export function sketchOutline(pts: { x: number; y: number }[], seed: string, closed = true, amp = 0.7) {
-  const rand = rng(seed + 'pen');
-  const n = closed ? pts.length : pts.length - 1;
-  let d = '';
-  for (let i = 0; i < n; i++) {
-    const a = pts[i], b = pts[(i + 1) % pts.length];
-    const len = Math.hypot(b.x - a.x, b.y - a.y);
-    if (len < 0.5) continue;
-    const ux = (b.x - a.x) / len, uy = (b.y - a.y) / len;
-    const over = Math.min(3.5, len * 0.08);
-    const sx = a.x - ux * over * rand(), sy = a.y - uy * over * rand();
-    const ex = b.x + ux * over * rand(), ey = b.y + uy * over * rand();
-    const steps = Math.max(1, Math.round(len / 14));
-    d += ` M${sx.toFixed(1)} ${sy.toFixed(1)}`;
-    for (let k = 1; k <= steps; k++) {
-      const t = k / steps;
-      const off = (rand() - 0.5) * 2 * amp;
-      const mx = sx + (ex - sx) * (t - 0.5 / steps) - uy * off;
-      const my = sy + (ey - sy) * (t - 0.5 / steps) + ux * off;
-      d += ` Q${mx.toFixed(1)} ${my.toFixed(1)} ${(sx + (ex - sx) * t).toFixed(1)} ${(sy + (ey - sy) * t).toFixed(1)}`;
-    }
-  }
-  return d.trim();
-}
-
-/** Marker strokes across the shadow side of a round plant, like a designer's felt-tip shading. */
-function MarkerShade({ cx, cy, r, colour, seed }: { cx: number; cy: number; r: number; colour: string; seed: string }) {
-  const rand = rng(seed + 'mk');
-  const R = r * 0.86;
-  const strokes = [];
-  const w = Math.max(1.4, r * 0.11);
-  for (let off = r * 0.05; off < R * 0.95; off += w * 0.9) {
-    const half = Math.sqrt(R * R - off * off) * (0.85 + rand() * 0.15);
-    // Centre of the chord, offset towards the shadow side (bottom right).
-    const mx = cx + off * Math.SQRT1_2, my = cy + off * Math.SQRT1_2;
-    strokes.push(
-      <Line key={off.toFixed(1)} x1={mx - half * Math.SQRT1_2} y1={my + half * Math.SQRT1_2} x2={mx + half * Math.SQRT1_2} y2={my - half * Math.SQRT1_2}
-        stroke={colour} strokeWidth={w} strokeLinecap="round" opacity={0.28 + rand() * 0.12} />,
-    );
-  }
-  return <G>{strokes}</G>;
-}
-
 // ---------- plant symbols ----------
 
-export function PlantSymbol({ info, id, cx, cy, quantity, scale, selected }: {
-  info: PlantInfo; id: string; cx: number; cy: number; quantity: number; scale: number; selected: boolean;
+/** Shared gradients for one drawing. Ids are prefixed so several drawings can share a screen. */
+export function PlanDefs({ prefix }: { prefix: string }) {
+  const grad = (id: string, hi: string, mid: string, edge: string) => (
+    <RadialGradient id={`${prefix}-${id}`} cx="50%" cy="50%" r="50%" fx="36%" fy="34%">
+      <Stop offset="0" stopColor={hi} />
+      <Stop offset="0.62" stopColor={mid} />
+      <Stop offset="1" stopColor={edge} />
+    </RadialGradient>
+  );
+  return (
+    <Defs>
+      {grad('tree', PALETTE.treeHi, PALETTE.tree, PALETTE.treeEdge)}
+      {grad('shrub', PALETTE.shrubHi, PALETTE.shrub, PALETTE.shrubEdge)}
+      {grad('foliage', PALETTE.foliageHi, PALETTE.foliage, PALETTE.foliageEdge)}
+    </Defs>
+  );
+}
+
+/** A soft shadow made of two offset layers, so its edge fades rather than stops. */
+function SoftShadow({ cx, cy, r, dx, dy }: { cx: number; cy: number; r: number; dx: number; dy: number }) {
+  return (
+    <G>
+      <Circle cx={cx + dx} cy={cy + dy} r={r * 1.04} fill={PALETTE.shadow} opacity={0.55} />
+      <Circle cx={cx + dx * 0.8} cy={cy + dy * 0.8} r={r * 0.96} fill={PALETTE.shadow} />
+    </G>
+  );
+}
+
+export function PlantSymbol({ info, id, cx, cy, quantity, scale, selected, gradPrefix }: {
+  info: PlantInfo; id: string; cx: number; cy: number; quantity: number; scale: number; selected: boolean; gradPrefix: string;
 }) {
   const r = Math.max((info.spreadM / 2) * scale, 4);
   const sh = shadowOffset(info.heightM, scale);
-  const ring = selected ? <Circle cx={cx} cy={cy} r={r + 4} fill="none" stroke="#2f5d3a" strokeWidth={2.5} strokeDasharray="5 3" /> : null;
+  const g = (name: string) => `url(#${gradPrefix}-${name})`;
+  const ring = selected ? <Circle cx={cx} cy={cy} r={r + 4} fill="none" stroke="#2f5d3a" strokeWidth={2} strokeDasharray="4 3" /> : null;
 
   if (info.type === 'Tree') {
-    const rand = rng(id + 'b');
-    const canopy = scallop(cx, cy, r, Math.round(10 + r / 6), id);
+    const spokes = 10;
     return (
       <G>
-        <Path d={scallop(cx + sh.dx, cy + sh.dy, r, Math.round(10 + r / 6), id)} fill={PALETTE.shadow} />
-        <Path d={canopy} fill={PALETTE.tree} />
-        {/* Marker shading on the shadow side, highlight on the sunny side */}
-        <Path d={scallop(cx + r * 0.16, cy + r * 0.13, r * 0.84, Math.round(9 + r / 7), id + 's', 0.18)} fill={PALETTE.treeShade} opacity={0.3} />
-        <MarkerShade cx={cx} cy={cy} r={r} colour={PALETTE.treeShade} seed={id} />
-        <Path d={scallop(cx - r * 0.2, cy - r * 0.18, r * 0.5, 8, id + 'i', 0.2)} fill={PALETTE.treeLight} opacity={0.85} />
-        <Path d={canopy} fill="none" stroke={PALETTE.treeDark} strokeWidth={0.9} />
-        {Array.from({ length: 6 }, (_, k) => {
-          const a = (k / 6) * Math.PI * 2 + rand() * 0.5;
-          return <Line key={k} x1={cx} y1={cy} x2={cx + Math.cos(a) * r * 0.72} y2={cy + Math.sin(a) * r * 0.72} stroke={PALETTE.treeDark} strokeWidth={0.5} opacity={0.55} />;
+        <SoftShadow cx={cx} cy={cy} r={r} dx={sh.dx} dy={sh.dy} />
+        <Path d={scallop(cx, cy, r, Math.round(14 + r / 5), id, 0.05)} fill={g('tree')} stroke={PALETTE.treeLine} strokeWidth={0.7} />
+        <Circle cx={cx} cy={cy} r={r * 0.64} fill="none" stroke="#ffffff" strokeOpacity={0.45} strokeWidth={0.6} />
+        {Array.from({ length: spokes }, (_, k) => {
+          const a = (k / spokes) * Math.PI * 2;
+          return <Line key={k} x1={cx + Math.cos(a) * r * 0.1} y1={cy + Math.sin(a) * r * 0.1} x2={cx + Math.cos(a) * r * 0.9} y2={cy + Math.sin(a) * r * 0.9} stroke={PALETTE.treeLine} strokeOpacity={0.35} strokeWidth={0.45} />;
         })}
-        <Circle cx={cx} cy={cy} r={Math.max(1.6, r * 0.06)} fill={PALETTE.treeDark} />
+        <Circle cx={cx} cy={cy} r={Math.max(1.5, r * 0.05)} fill={PALETTE.treeLine} />
         {ring}
       </G>
     );
   }
 
   if (info.type === 'Grass') {
-    const rand = rng(id);
     return (
       <G>
         {driftPositions(quantity, info.spacingM * scale * 0.55).map((p, k) => (
           <G key={k}>
-            <Circle cx={cx + p.x + sh.dx} cy={cy + p.y + sh.dy} r={r * 0.7} fill={PALETTE.shadow} />
-            {Array.from({ length: 14 }, (_, j) => {
-              const a = (j / 14) * Math.PI * 2 + rand() * 0.3;
-              const len = r * (0.75 + rand() * 0.3);
-              return <Line key={j} x1={cx + p.x} y1={cy + p.y} x2={cx + p.x + Math.cos(a) * len} y2={cy + p.y + Math.sin(a) * len} stroke={PALETTE.grass} strokeWidth={0.9} />;
+            <SoftShadow cx={cx + p.x} cy={cy + p.y} r={r * 0.6} dx={sh.dx} dy={sh.dy} />
+            <Circle cx={cx + p.x} cy={cy + p.y} r={r * 0.85} fill="#f1ead2" stroke={PALETTE.grass} strokeWidth={0.5} />
+            {Array.from({ length: 16 }, (_, j) => {
+              const a = (j / 16) * Math.PI * 2;
+              return <Line key={j} x1={cx + p.x} y1={cy + p.y} x2={cx + p.x + Math.cos(a) * r * 0.8} y2={cy + p.y + Math.sin(a) * r * 0.8} stroke={PALETTE.grass} strokeWidth={0.55} />;
             })}
           </G>
         ))}
@@ -176,42 +153,18 @@ export function PlantSymbol({ info, id, cx, cy, quantity, scale, selected }: {
     );
   }
 
-  if (info.type === 'Shrub' || info.type === 'Climber') {
-    const positions = info.type === 'Shrub' && quantity > 1 ? driftPositions(quantity, info.spacingM * scale * 0.55) : [{ x: 0, y: 0 }];
-    const rr = positions.length > 1 ? r * 0.8 : r;
-    return (
-      <G>
-        {positions.map((p, k) => (
-          <Path key={`s${k}`} d={scallop(cx + p.x + sh.dx, cy + p.y + sh.dy, rr, 9, `${id}${k}`, 0.22)} fill={PALETTE.shadow} />
-        ))}
-        {positions.map((p, k) => (
-          <G key={k}>
-            <Path d={scallop(cx + p.x, cy + p.y, rr, 9, `${id}${k}`, 0.22)} fill={PALETTE.shrub} />
-            <MarkerShade cx={cx + p.x} cy={cy + p.y} r={rr} colour={PALETTE.shrubShade} seed={`${id}${k}`} />
-            <Path d={scallop(cx + p.x, cy + p.y, rr, 9, `${id}${k}`, 0.22)} fill="none" stroke={PALETTE.shrubDark} strokeWidth={0.8} />
-            <Path d={`M${cx + p.x - rr * 0.35} ${cy + p.y} q${rr * 0.15} ${-rr * 0.25} ${rr * 0.3} 0 M${cx + p.x + rr * 0.05} ${cy + p.y + rr * 0.3} q${rr * 0.15} ${-rr * 0.25} ${rr * 0.3} 0`} stroke={PALETTE.shrubDark} strokeWidth={0.5} fill="none" opacity={0.6} />
-            <FlowerDots cx={cx + p.x} cy={cy + p.y} r={rr} colour={info.colour} seed={`${id}${k}`} n={info.type === 'Climber' ? 6 : 4} />
-          </G>
-        ))}
-        {ring}
-      </G>
-    );
-  }
-
-  // Perennials and herbs: a drift of small clumps, one per plant.
-  const positions = driftPositions(quantity, info.spacingM * scale * 0.55);
-  const rr = Math.max(r * (quantity > 1 ? 0.65 : 0.9), 3.5);
+  const shrubLike = info.type === 'Shrub' || info.type === 'Climber';
+  const positions = quantity > 1 ? driftPositions(quantity, info.spacingM * scale * 0.55) : [{ x: 0, y: 0 }];
+  const rr = Math.max(r * (positions.length > 1 ? (shrubLike ? 0.8 : 0.65) : 0.95), 3.5);
+  const fill = shrubLike ? g('shrub') : g('foliage');
+  const line = PALETTE.treeLine;
   return (
     <G>
-      {positions.map((p, k) => (
-        <Path key={`s${k}`} d={scallop(cx + p.x + sh.dx, cy + p.y + sh.dy, rr, 7, `${id}${k}`, 0.3)} fill={PALETTE.shadow} />
-      ))}
+      {positions.map((p, k) => <SoftShadow key={`s${k}`} cx={cx + p.x} cy={cy + p.y} r={rr} dx={sh.dx} dy={sh.dy} />)}
       {positions.map((p, k) => (
         <G key={k}>
-          <Path d={scallop(cx + p.x, cy + p.y, rr, 7, `${id}${k}`, 0.3)} fill={PALETTE.foliage} />
-          <MarkerShade cx={cx + p.x} cy={cy + p.y} r={rr} colour={PALETTE.shrubShade} seed={`${id}${k}`} />
-          <Path d={scallop(cx + p.x, cy + p.y, rr, 7, `${id}${k}`, 0.3)} fill="none" stroke={PALETTE.shrubDark} strokeWidth={0.6} />
-          <FlowerDots cx={cx + p.x} cy={cy + p.y} r={rr} colour={info.colour} seed={`${id}${k}`} n={5} />
+          <Path d={scallop(cx + p.x, cy + p.y, rr, shrubLike ? 11 : 8, `${id}${k}`, 0.08)} fill={fill} stroke={line} strokeWidth={0.6} />
+          <FlowerDots cx={cx + p.x} cy={cy + p.y} r={rr} colour={info.colour} seed={`${id}${k}`} n={shrubLike ? 3 : 1} />
         </G>
       ))}
       {ring}
@@ -221,12 +174,14 @@ export function PlantSymbol({ info, id, cx, cy, quantity, scale, selected }: {
 
 function FlowerDots({ cx, cy, r, colour, seed, n }: { cx: number; cy: number; r: number; colour: string; seed: string; n: number }) {
   const rand = rng(seed + 'f');
+  const rot = rand() * Math.PI * 2;
+  const dotR = Math.max(1.2, r * (n === 1 ? 0.26 : 0.14));
   return (
-    <G>
+    <G opacity={0.9}>
       {Array.from({ length: n }, (_, k) => {
-        const a = rand() * Math.PI * 2;
-        const d = Math.sqrt(rand()) * r * 0.6;
-        return <Circle key={k} cx={cx + Math.cos(a) * d} cy={cy + Math.sin(a) * d} r={Math.max(1.1, r * 0.12)} fill={colour} />;
+        const a = rot + (k / n) * Math.PI * 2;
+        const d = n === 1 ? 0 : r * 0.42;
+        return <Circle key={k} cx={cx + Math.cos(a) * d} cy={cy + Math.sin(a) * d} r={dotR} fill={colour} stroke="#ffffff" strokeOpacity={0.6} strokeWidth={0.5} />;
       })}
     </G>
   );
@@ -266,7 +221,7 @@ export function Surface({ f, X, Y, scale, clipId }: { f: Feature; X: Px; Y: Px; 
       for (let x = b.x0, k = 0; x < b.x1; x += sw, k++) {
         if (k % 2) tex.push(<Rect key={k} x={x} y={b.y0} width={sw} height={h} fill={PALETTE.lawnStripe} />);
       }
-      edge = { stroke: '#6f8a5c', width: 0.9 };
+      edge = { stroke: '#7f9a68', width: 0.6 };
       break;
     }
     case 'patio': {
@@ -277,7 +232,7 @@ export function Surface({ f, X, Y, scale, clipId }: { f: Feature; X: Px; Y: Px; 
           tex.push(<Rect key={`${row}-${x.toFixed(0)}`} x={x} y={y} width={sw} height={sh} fill={PALETTE.stone[Math.floor(rand() * 3)]} stroke={PALETTE.joint} strokeWidth={0.6} />);
         }
       }
-      edge = { stroke: PALETTE.ink, width: 1.2 };
+      edge = { stroke: '#8f8a7f', width: 0.8 };
       break;
     }
     case 'decking': {
@@ -292,25 +247,25 @@ export function Surface({ f, X, Y, scale, clipId }: { f: Feature; X: Px; Y: Px; 
     case 'path': {
       const bark = f.material === 'bark';
       base = bark ? PALETTE.bark : PALETTE.gravel;
-      const n = Math.min(900, Math.round((w * h) / (bark ? 55 : 28)));
+      const n = Math.min(900, Math.round((w * h) / (bark ? 90 : 45)));
       for (let k = 0; k < n; k++) {
         const x = b.x0 + rand() * w, y = b.y0 + rand() * h;
         if (bark) {
           const a = rand() * Math.PI, l = 2 + rand() * 2.5;
-          tex.push(<Line key={k} x1={x} y1={y} x2={x + Math.cos(a) * l} y2={y + Math.sin(a) * l} stroke={PALETTE.barkFleck} strokeWidth={0.8} />);
+          tex.push(<Line key={k} x1={x} y1={y} x2={x + Math.cos(a) * l} y2={y + Math.sin(a) * l} stroke={PALETTE.barkFleck} strokeWidth={0.6} strokeLinecap="round" />);
         } else {
           tex.push(<Circle key={k} cx={x} cy={y} r={0.5 + rand() * 0.7} fill={PALETTE.gravelDot[Math.floor(rand() * 3)]} />);
         }
       }
-      edge = { stroke: '#7d7564', width: 0.8 };
+      edge = { stroke: '#9a907c', width: 0.6 };
       break;
     }
     case 'bed':
     case 'raised_bed': {
       base = PALETTE.soil;
-      const n = Math.min(500, Math.round((w * h) / 90));
+      const n = Math.min(500, Math.round((w * h) / 160));
       for (let k = 0; k < n; k++) {
-        tex.push(<Circle key={k} cx={b.x0 + rand() * w} cy={b.y0 + rand() * h} r={0.55} fill={PALETTE.soilDot} />);
+        tex.push(<Circle key={k} cx={b.x0 + rand() * w} cy={b.y0 + rand() * h} r={0.5} fill={PALETTE.soilDot} />);
       }
       if (f.kind === 'raised_bed') {
         // Rows of crops across the bed.
@@ -318,11 +273,11 @@ export function Surface({ f, X, Y, scale, clipId }: { f: Feature; X: Px; Y: Px; 
         for (let rI = 1; rI < rows; rI++) {
           const y = b.y0 + (h * rI) / rows;
           for (let x = b.x0 + 0.25 * scale; x < b.x1 - 0.15 * scale; x += 0.3 * scale) {
-            tex.push(<Path key={`c${rI}-${x.toFixed(0)}`} d={scallop(x, y, Math.max(2.2, 0.1 * scale), 5, `${f.id}${rI}${x.toFixed(0)}`, 0.3)} fill={PALETTE.foliage} stroke={PALETTE.shrubDark} strokeWidth={0.4} />);
+            tex.push(<Circle key={`c${rI}-${x.toFixed(0)}`} cx={x} cy={y} r={Math.max(2, 0.09 * scale)} fill={PALETTE.foliage} stroke={PALETTE.treeLine} strokeWidth={0.4} />);
           }
         }
       }
-      edge = { stroke: f.kind === 'raised_bed' ? PALETTE.timber : '#7a6a52', width: f.kind === 'raised_bed' ? Math.max(2, 0.08 * scale) : 0.9 };
+      edge = { stroke: f.kind === 'raised_bed' ? PALETTE.timber : '#a89678', width: f.kind === 'raised_bed' ? Math.max(2, 0.08 * scale) : 0.6 };
       break;
     }
     case 'pond': {
@@ -353,7 +308,7 @@ export function Surface({ f, X, Y, scale, clipId }: { f: Feature; X: Px; Y: Px; 
           tex.push(<Line key={k} x1={b.x0} y1={y} x2={b.x1} y2={y} stroke={PALETTE.roofLine} strokeWidth={0.5} />);
         }
       }
-      edge = { stroke: PALETTE.ink, width: 1.6 };
+      edge = { stroke: PALETTE.ink, width: 1.4 };
       break;
     }
     default:
@@ -374,14 +329,8 @@ export function Surface({ f, X, Y, scale, clipId }: { f: Feature; X: Px; Y: Px; 
       </Defs>
       <Polygon points={pts} fill={base} />
       <G clipPath={`url(#${clipId})`}>{tex}</G>
-      {f.kind === 'raised_bed' ? (
-        <>
-          <Polygon points={pts} fill="none" stroke={edge.stroke} strokeWidth={edge.width} />
-          <Path d={sketchOutline(px, f.id)} fill="none" stroke={PALETTE.ink} strokeWidth={0.6} strokeLinecap="round" />
-        </>
-      ) : (
-        <Path d={sketchOutline(px, f.id)} fill="none" stroke={edge.stroke} strokeWidth={edge.width} strokeLinecap="round" />
-      )}
+      <Polygon points={pts} fill="none" stroke={edge.stroke} strokeWidth={edge.width} strokeLinejoin="round" />
+      {f.kind === 'raised_bed' && <Polygon points={pts} fill="none" stroke={PALETTE.ink} strokeWidth={0.4} />}
     </G>
   );
 }
